@@ -10,6 +10,8 @@ export const useAdminStore = defineStore('admin', () => {
 	const username = ref(storedUsername)
 	
 	function login(enteredUsername, enteredPassword) {
+		// In a real app, you'd call an API here
+		// For now, we'll use environment variables for simplicity
 		const validUsername = import.meta.env.VITE_ADMIN_USERNAME
 		const validPassword = import.meta.env.VITE_ADMIN_PASSWORD
 		
