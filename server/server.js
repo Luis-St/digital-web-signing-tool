@@ -12,11 +12,13 @@ require("dotenv").config();
 const app = express();
 const server = http.createServer(app);
 
-// Configure Socket.IO
+// Configure Socket.IO with proper CORS settings
 const io = new Server(server, {
 	cors: {
-		origin: process.env.VITE_CLIENT_URL || "http://localhost:3000",
-		methods: ["GET", "POST"]
+		origin: "*", // Allow all origins in development
+		methods: ["GET", "POST"],
+		allowedHeaders: ["my-custom-header"],
+		credentials: true
 	}
 });
 
@@ -49,10 +51,12 @@ io.on("connection", (socket) => {
 		io.emit("tablets-update", Array.from(connectedTablets.values()));
 		
 		// Confirm registration
-		callback({
-			success: true,
-			tabletId
-		});
+		if (callback && typeof callback === "function") {
+			callback({
+				success: true,
+				tabletId
+			});
+		}
 		
 		console.log(`Tablet registered: ${tabletName} (${tabletId})`);
 	});
@@ -134,6 +138,13 @@ io.on("connection", (socket) => {
 	});
 });
 
+// Middleware to handle CORS for regular HTTP requests
+app.use((req, res, next) => {
+	res.header("Access-Control-Allow-Origin", "*");
+	res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+	next();
+});
+
 // Serve static files in production
 if (process.env.NODE_ENV === "production") {
 	app.use(express.static(path.join(__dirname, "../dist")));
@@ -143,8 +154,26 @@ if (process.env.NODE_ENV === "production") {
 	});
 }
 
+// API endpoint to check server status
+app.get("/api/status", (req, res) => {
+	res.json({
+		status: "ok",
+		tablets: connectedTablets.size,
+		uptime: process.uptime()
+	});
+});
+
 // Start server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
 	console.log(`Server running on port ${PORT}`);
+});
+
+// Handle process termination
+process.on("SIGINT", () => {
+	console.log("Shutting down server...");
+	server.close(() => {
+		console.log("Server shut down");
+		process.exit(0);
+	});
 });
