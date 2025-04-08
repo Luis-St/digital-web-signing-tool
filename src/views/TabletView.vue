@@ -4,11 +4,14 @@
 		<div v-if="showDebug" class="bg-yellow-100 p-2 text-xs border-b">
 			<p>Tablet state: {{ isTabletAuthenticated ? "Authenticated" : "Not authenticated" }}</p>
 			<p>Tablet name: {{ tabletName }}</p>
-			<p>Socket connected: {{ socketConnected ? "Yes" : "No" }}</p>
+			<p>Socket status: {{ connectionStatus }}
+				<span v-if="!isConnected" class="text-red-500 ml-2">{{ connectionStatusDetails }}</span>
+			</p>
 			<div class="flex space-x-2 mt-1">
 				<button @click="showDebug = false" class="text-blue-500 underline">Hide</button>
 				<button v-if="!isTabletAuthenticated" @click="useTestMode" class="text-green-500 underline">Test Mode</button>
 				<button v-if="isTabletAuthenticated" @click="resetTablet" class="text-red-500 underline">Reset</button>
+				<button v-if="isTabletAuthenticated && !isConnected" @click="reconnect" class="text-blue-500 underline">Reconnect</button>
 			</div>
 		</div>
 
@@ -49,8 +52,8 @@
 						{{ registrationError }}
 					</div>
 
-					<button type="submit" class="btn-primary w-full">
-						Register Tablet
+					<button type="submit" class="btn-primary w-full" :disabled="registrationInProgress">
+						{{ registrationInProgress ? "Connecting..." : "Register Tablet" }}
 					</button>
 				</form>
 			</div>
@@ -69,6 +72,10 @@
 				<h2 class="text-2xl font-bold mb-2">Ready for Players</h2>
 				<p class="text-gray-600 max-w-md">
 					This tablet is registered as <strong>{{ tabletName }}</strong> and is waiting for players to be assigned from the admin panel.
+				</p>
+				<p v-if="!isConnected" class="text-red-500 mt-4">
+					Currently offline. Please check your connection.
+					<button @click="reconnect" class="underline ml-2">Reconnect</button>
 				</p>
 			</div>
 
@@ -136,10 +143,14 @@
 							<button @click="clearSignature" class="btn bg-gray-200 text-gray-700 hover:bg-gray-300">
 								Clear
 							</button>
-							<button @click="submitSignature" class="btn-primary flex-grow" :disabled="!signatureIsValid">
+							<button @click="submitSignature" class="btn-primary flex-grow" :disabled="!signatureIsValid || !isConnected">
 								I Agree & Sign
 							</button>
 						</div>
+
+						<p v-if="!isConnected" class="text-red-500 text-center mt-2">
+							Currently offline. Please reconnect before signing.
+						</p>
 					</div>
 				</div>
 			</div>
@@ -148,7 +159,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useTabletsStore } from "@/stores/tablets";
 import { usePlayersStore } from "@/stores/players";
 import SignatureCanvas from "../components/SignatureCanvas.vue";
@@ -166,8 +177,18 @@ const showDebug = ref(true);
 const tabletName = ref(tabletsStore.currentTabletName || "");
 const tabletToken = ref("");
 const registrationError = ref("");
+const registrationInProgress = ref(false);
 const isTabletAuthenticated = computed(() => tabletsStore.isTabletAuthenticated);
-const socketConnected = ref(false);
+const isConnected = computed(() => tabletsStore.isConnected);
+
+// Connection status details
+const connectionStatus = computed(() => {
+	if (isConnected.value) return "Connected";
+	if (!tabletsStore.isTabletAuthenticated) return "Not authenticated";
+	return "Disconnected";
+});
+
+const connectionStatusDetails = ref("");
 
 // Players state
 const currentPlayer = computed(() => playersStore.currentPlayer);
@@ -185,19 +206,53 @@ const activityTypeLabel = computed(() => {
 	return "Activity";
 });
 
+// Handle players-assigned event
+function handlePlayersAssigned(data) {
+	console.log("Received players assignment:", data);
+	if (data && data.players && Array.isArray(data.players)) {
+		playersStore.setPlayers(data.players);
+
+		if (data.activityType) {
+			playersStore.setActivityType(data.activityType);
+		}
+	}
+}
+
+// Force reconnection
+function reconnect() {
+	console.log("Manually reconnecting...");
+	tabletsStore.initSocket();
+	connectionStatusDetails.value = "Reconnecting...";
+
+	// Clear status message after a delay
+	setTimeout(() => {
+		if (!isConnected.value) {
+			connectionStatusDetails.value = "Failed to connect. Try again.";
+		} else {
+			connectionStatusDetails.value = "";
+		}
+	}, 5000);
+}
+
 // Methods
-function handleRegisterTablet() {
+async function handleRegisterTablet() {
 	console.log("Attempting to register tablet:", tabletName.value);
 	registrationError.value = "";
+	registrationInProgress.value = true;
+	connectionStatusDetails.value = "Connecting...";
 
-	tabletsStore.registerTablet(tabletName.value, tabletToken.value)
-		.then(response => {
-			console.log("Registration successful:", response);
-		})
-		.catch(error => {
-			console.error("Registration failed:", error);
-			registrationError.value = error.message || "Failed to register tablet";
-		});
+	try {
+		await tabletsStore.registerTablet(tabletName.value, tabletToken.value);
+		console.log("Registration successful");
+		setupEventHandlers();
+		registrationInProgress.value = false;
+		connectionStatusDetails.value = "";
+	} catch (error) {
+		console.error("Registration failed:", error);
+		registrationError.value = error.message || "Failed to register tablet";
+		registrationInProgress.value = false;
+		connectionStatusDetails.value = "Connection failed";
+	}
 }
 
 // For testing without server
@@ -217,16 +272,15 @@ function clearSignature() {
 }
 
 function submitSignature() {
-	if (!signatureIsValid.value || !currentPlayer.value) return;
+	if (!signatureIsValid.value || !currentPlayer.value || !isConnected.value) return;
 
 	try {
 		const signatureData = signaturePad.value.getSignatureData();
 		playersStore.markCurrentPlayerSigned(signatureData);
 
 		// Send signature data to server if connected
-		const socket = tabletsStore.socket;
-		if (socket && socket.value && socket.value.connected && tabletsStore.currentTabletId) {
-			socket.value.emit("player-signed", {
+		if (isConnected.value && tabletsStore.currentTabletId) {
+			tabletsStore.sendMessage("player-signed", {
 				tabletId: tabletsStore.currentTabletId,
 				playerName: currentPlayer.value.name,
 				timestamp: new Date().toISOString(),
@@ -234,10 +288,39 @@ function submitSignature() {
 				signatureData,
 			});
 		} else {
-			console.warn("Socket not connected, signature saved locally only");
+			console.warn("WebSocket not connected, signature saved locally only");
 		}
 	} catch (error) {
 		console.error("Error submitting signature:", error);
+	}
+}
+
+// Set up WebSocket event handlers
+function setupEventHandlers() {
+	console.log("Setting up WebSocket event handlers");
+
+	// Remove any existing handlers to prevent duplicates
+	tabletsStore.off("players-assigned");
+
+	// Set up new handlers
+	tabletsStore.on("players-assigned", handlePlayersAssigned);
+}
+
+// Connection management
+function ensureConnection() {
+	if (isTabletAuthenticated.value && !isConnected.value) {
+		console.log("Not connected, attempting to connect...");
+		tabletsStore.initSocket();
+		connectionStatusDetails.value = "Reconnecting...";
+
+		// Clear status message after a delay
+		setTimeout(() => {
+			if (!isConnected.value) {
+				connectionStatusDetails.value = "Reconnection failed";
+			} else {
+				connectionStatusDetails.value = "";
+			}
+		}, 5000);
 	}
 }
 
@@ -245,25 +328,50 @@ function submitSignature() {
 onMounted(() => {
 	console.log("TabletView mounted, auth state:", isTabletAuthenticated.value);
 
-	if (!isTabletAuthenticated.value) {
-		// Not authenticated, no further actions needed
-		return;
-	}
-
-	// Initialize socket for authenticated tablets
-	if (!tabletsStore.socket || !tabletsStore.socket.value) {
+	if (isTabletAuthenticated.value) {
+		// Initialize WebSocket for authenticated tablets
 		tabletsStore.initSocket();
+
+		// Set up event handlers
+		setupEventHandlers();
+
+		// Set up periodic connection checker
+		const connectionChecker = setInterval(() => {
+			if (!isConnected.value) {
+				connectionStatusDetails.value = "Connection lost, attempting to reconnect...";
+				ensureConnection();
+			} else {
+				connectionStatusDetails.value = "";
+			}
+		}, 30000); // Check every 30 seconds
+
+		// Clean up on unmount
+		onUnmounted(() => {
+			clearInterval(connectionChecker);
+			tabletsStore.off("players-assigned", handlePlayersAssigned);
+		});
 	}
+});
 
-	// Monitor socket connection
-	const checkSocketConnection = setInterval(() => {
-		const socket = tabletsStore.socket;
-		socketConnected.value = socket && socket.value && socket.value.connected;
-	}, 2000);
+// Watch for connection changes
+watch(() => tabletsStore.isConnected, (newValue) => {
+	console.log("Connection status changed:", newValue ? "connected" : "disconnected");
 
-	// Clean up interval on unmount
-	onUnmounted(() => {
-		clearInterval(checkSocketConnection);
-	});
+	if (newValue && isTabletAuthenticated.value) {
+		setupEventHandlers();
+		connectionStatusDetails.value = "";
+	} else if (!newValue && isTabletAuthenticated.value) {
+		connectionStatusDetails.value = "Connection lost";
+	}
+});
+
+// Watch for authentication changes
+watch(() => tabletsStore.isTabletAuthenticated, (newValue) => {
+	console.log("Authentication state changed:", newValue);
+
+	if (newValue) {
+		ensureConnection();
+		setupEventHandlers();
+	}
 });
 </script>

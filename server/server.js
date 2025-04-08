@@ -1,6 +1,6 @@
 const express = require("express");
 const http = require("http");
-const { Server } = require("socket.io");
+const { WebSocketServer } = require("ws");
 const path = require("path");
 const fs = require("fs");
 const { generatePdf } = require("./pdf");
@@ -12,15 +12,8 @@ require("dotenv").config();
 const app = express();
 const server = http.createServer(app);
 
-// Configure Socket.IO with proper CORS settings
-const io = new Server(server, {
-	cors: {
-		origin: "*", // Allow all origins in development
-		methods: ["GET", "POST"],
-		allowedHeaders: ["my-custom-header"],
-		credentials: true
-	}
-});
+// Create WebSocket server
+const wss = new WebSocketServer({ server });
 
 // Ensure PDF storage directory exists
 const storageDir = process.env.PDF_STORAGE_PATH || "./storage/waivers";
@@ -30,112 +23,220 @@ if (!fs.existsSync(storageDir)) {
 
 // Track connected tablets
 const connectedTablets = new Map();
+const clientConnections = new Map();
 
-// Socket.IO connection handling
-io.on("connection", (socket) => {
-	console.log("Client connected:", socket.id);
-	
-	// Register a tablet
-	socket.on("register-tablet", ({ tabletName }, callback) => {
-		const tabletId = socket.id;
-		
-		// Store tablet info
-		connectedTablets.set(tabletId, {
-			id: tabletId,
-			name: tabletName,
-			status: "available",
-			players: []
-		});
-		
-		// Broadcast updated tablet list to all admins
-		io.emit("tablets-update", Array.from(connectedTablets.values()));
-		
-		// Confirm registration
-		if (callback && typeof callback === "function") {
-			callback({
-				success: true,
-				tabletId
-			});
-		}
-		
-		console.log(`Tablet registered: ${tabletName} (${tabletId})`);
-	});
-	
-	// Send players to a tablet
-	socket.on("send-players", ({ tabletId, players, activityType }) => {
-		const targetSocket = io.sockets.sockets.get(tabletId);
-		
-		if (targetSocket && connectedTablets.has(tabletId)) {
-			// Update tablet status
-			const tablet = connectedTablets.get(tabletId);
-			tablet.status = "busy";
-			tablet.players = players;
-			
-			// Send players to the tablet
-			targetSocket.emit("players-assigned", {
-				players,
-				activityType
-			});
-			
-			// Broadcast updated tablet list
-			io.emit("tablets-update", Array.from(connectedTablets.values()));
-			
-			console.log(`Sent ${players.length} players to tablet ${tablet.name}`);
+// Heartbeat functionality to detect dead connections
+function heartbeat() {
+	this.isAlive = true;
+}
+
+// Helper to send a message to a specific client
+function sendToClient(client, event, data, id = null) {
+	if (client.readyState === 1) { // OPEN
+		client.send(JSON.stringify({
+			type: id ? "callback" : "event",
+			event,
+			data,
+			id,
+		}));
+	}
+}
+
+// Helper to broadcast to all clients
+function broadcast(event, data) {
+	wss.clients.forEach(client => {
+		if (client.readyState === 1) { // OPEN
+			client.send(JSON.stringify({
+				type: "event",
+				event,
+				data,
+			}));
 		}
 	});
+}
+
+// WebSocket server connection handling
+wss.on("connection", (ws, req) => {
+	// Setup connection
+	const clientIp = req.socket.remoteAddress;
 	
-	// Handle player signature
-	socket.on("player-signed", async ({ tabletId, playerName, activityType, signatureData }) => {
-		if (!connectedTablets.has(tabletId)) return;
-		
+	// Assign a unique ID to this connection
+	const connectionId = Date.now().toString(36) + Math.random().toString(36).substring(2);
+	ws.id = connectionId;
+	
+	// Setup heartbeat
+	ws.isAlive = true;
+	ws.on("pong", heartbeat);
+	
+	console.log(`Client connected: ${connectionId} from ${clientIp}`);
+	clientConnections.set(connectionId, ws);
+	
+	// Handle incoming messages
+	ws.on("message", (message) => {
 		try {
-			// Generate PDF with signature
-			const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-			const filename = `${playerName.replace(/\s+/g, "_")}_${timestamp}.pdf`;
-			const filePath = path.join(storageDir, filename);
+			const parsed = JSON.parse(message);
+			const { type, event, data, id } = parsed;
 			
-			await generatePdf({
-				playerName,
-				activityType,
-				signatureData,
-				outputPath: filePath
-			});
+			console.log(`Received ${type} message:`, parsed);
 			
-			console.log(`Waiver PDF created for ${playerName} at ${filePath}`);
-			
-			// Check if all players have signed
-			const tablet = connectedTablets.get(tabletId);
-			const signedPlayerIndex = tablet.players.indexOf(playerName);
-			
-			if (signedPlayerIndex !== -1) {
-				// Remove player from the list
-				tablet.players.splice(signedPlayerIndex, 1);
-				
-				// Update tablet status if all players have signed
-				if (tablet.players.length === 0) {
-					tablet.status = "available";
-				}
-				
-				// Broadcast updated tablet list
-				io.emit("tablets-update", Array.from(connectedTablets.values()));
+			if (type === "event") {
+				handleEvent(ws, event, data, id);
+			} else if (type === "ping") {
+				// Respond to heartbeat
+				ws.send(JSON.stringify({ type: "pong" }));
 			}
 		} catch (error) {
-			console.error("Error generating PDF:", error);
+			console.error("Error processing message:", error, message.toString());
 		}
 	});
 	
 	// Handle disconnection
-	socket.on("disconnect", () => {
-		const tabletId = socket.id;
+	ws.on("close", () => {
+		const tabletId = ws.id;
+		clientConnections.delete(tabletId);
 		
 		if (connectedTablets.has(tabletId)) {
 			connectedTablets.delete(tabletId);
-			io.emit("tablets-update", Array.from(connectedTablets.values()));
+			broadcast("tablets-update", Array.from(connectedTablets.values()));
 			console.log(`Tablet disconnected: ${tabletId}`);
 		}
 		
-		console.log("Client disconnected:", socket.id);
+		console.log("Client disconnected:", tabletId);
 	});
+	
+	// Handle errors
+	ws.on("error", (error) => {
+		console.error("WebSocket error:", error);
+	});
+});
+
+// Event handler
+function handleEvent(ws, event, data, id) {
+	switch (event) {
+		case "register-tablet":
+			registerTablet(ws, data, id);
+			break;
+		
+		case "send-players":
+			sendPlayersToTablet(ws, data);
+			break;
+		
+		case "player-signed":
+			handlePlayerSigned(ws, data);
+			break;
+		
+		default:
+			console.warn(`Unknown event: ${event}`);
+	}
+}
+
+// Register a tablet
+function registerTablet(ws, { tabletName }, id) {
+	const tabletId = ws.id;
+	
+	// Store tablet info
+	connectedTablets.set(tabletId, {
+		id: tabletId,
+		name: tabletName,
+		status: "available",
+		players: [],
+	});
+	
+	// Broadcast updated tablet list to all clients
+	broadcast("tablets-update", Array.from(connectedTablets.values()));
+	
+	// Confirm registration with callback
+	if (id) {
+		sendToClient(ws, "register-tablet-response", {
+			success: true,
+			tabletId,
+		}, id);
+	}
+	
+	console.log(`Tablet registered: ${tabletName} (${tabletId})`);
+}
+
+// Send players to a tablet
+function sendPlayersToTablet(ws, { tabletId, players, activityType }) {
+	// Find the target client by ID
+	const targetClient = clientConnections.get(tabletId);
+	
+	if (targetClient && connectedTablets.has(tabletId)) {
+		// Update tablet status
+		const tablet = connectedTablets.get(tabletId);
+		tablet.status = "busy";
+		tablet.players = players;
+		
+		// Send players to the tablet
+		sendToClient(targetClient, "players-assigned", {
+			players,
+			activityType,
+		});
+		
+		// Broadcast updated tablet list
+		broadcast("tablets-update", Array.from(connectedTablets.values()));
+		
+		console.log(`Sent ${players.length} players to tablet ${tablet.name}`);
+	} else {
+		console.warn(`Cannot find tablet with ID: ${tabletId}`);
+	}
+}
+
+// Handle player signature
+async function handlePlayerSigned(ws, { tabletId, playerName, activityType, signatureData }) {
+	if (!connectedTablets.has(tabletId)) return;
+	
+	try {
+		// Generate PDF with signature
+		const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+		const filename = `${playerName.replace(/\s+/g, "_")}_${timestamp}.pdf`;
+		const filePath = path.join(storageDir, filename);
+		
+		await generatePdf({
+			playerName,
+			activityType,
+			signatureData,
+			outputPath: filePath,
+		});
+		
+		console.log(`Waiver PDF created for ${playerName} at ${filePath}`);
+		
+		// Check if all players have signed
+		const tablet = connectedTablets.get(tabletId);
+		const signedPlayerIndex = tablet.players.indexOf(playerName);
+		
+		if (signedPlayerIndex !== -1) {
+			// Remove player from the list
+			tablet.players.splice(signedPlayerIndex, 1);
+			
+			// Update tablet status if all players have signed
+			if (tablet.players.length === 0) {
+				tablet.status = "available";
+			}
+			
+			// Broadcast updated tablet list
+			broadcast("tablets-update", Array.from(connectedTablets.values()));
+		}
+	} catch (error) {
+		console.error("Error generating PDF:", error);
+	}
+}
+
+// Set up interval to check for dead connections
+const interval = setInterval(() => {
+	wss.clients.forEach(ws => {
+		if (ws.isAlive === false) {
+			console.log(`Terminating inactive connection: ${ws.id}`);
+			return ws.terminate();
+		}
+		
+		ws.isAlive = false;
+		ws.ping();
+	});
+}, 30000);
+
+wss.on("close", () => {
+	clearInterval(interval);
 });
 
 // Middleware to handle CORS for regular HTTP requests
@@ -159,7 +260,8 @@ app.get("/api/status", (req, res) => {
 	res.json({
 		status: "ok",
 		tablets: connectedTablets.size,
-		uptime: process.uptime()
+		connections: clientConnections.size,
+		uptime: process.uptime(),
 	});
 });
 
