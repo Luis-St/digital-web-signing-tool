@@ -21,9 +21,10 @@ if (!fs.existsSync(storageDir)) {
 	fs.mkdirSync(storageDir, { recursive: true });
 }
 
-// Track connected tablets
+// Track connected tablets and admin clients
 const connectedTablets = new Map();
 const clientConnections = new Map();
+const adminConnections = new Map();
 
 // Heartbeat functionality to detect dead connections
 function heartbeat() {
@@ -43,9 +44,15 @@ function sendToClient(client, event, data, id = null) {
 }
 
 // Helper to broadcast to all clients
-function broadcast(event, data) {
+function broadcast(event, data, targetType = "all") {
 	wss.clients.forEach(client => {
 		if (client.readyState === 1) { // OPEN
+			// Skip if we're targeting only admins and this is not an admin
+			if (targetType === "admin" && !client.isAdmin) return;
+			
+			// Skip if we're targeting only tablets and this is not a tablet
+			if (targetType === "tablet" && !client.isTablet) return;
+			
 			client.send(JSON.stringify({
 				type: "event",
 				event,
@@ -63,6 +70,8 @@ wss.on("connection", (ws, req) => {
 	// Assign a unique ID to this connection
 	const connectionId = Date.now().toString(36) + Math.random().toString(36).substring(2);
 	ws.id = connectionId;
+	ws.isAdmin = false; // Default - not an admin until proven otherwise
+	ws.isTablet = false; // Default - not a tablet until registered
 	
 	// Setup heartbeat
 	ws.isAlive = true;
@@ -75,7 +84,16 @@ wss.on("connection", (ws, req) => {
 	ws.on("message", (message) => {
 		try {
 			const parsed = JSON.parse(message);
-			const { type, event, data, id } = parsed;
+			const { type, event, data = {}, id } = parsed;
+			
+			// Check if this is an admin client
+			if (data && data.isAdmin) {
+				ws.isAdmin = true;
+				if (!adminConnections.has(connectionId)) {
+					console.log(`Marking client ${connectionId} as admin`);
+					adminConnections.set(connectionId, ws);
+				}
+			}
 			
 			console.log(`Received ${type} message:`, parsed);
 			
@@ -92,28 +110,43 @@ wss.on("connection", (ws, req) => {
 	
 	// Handle disconnection
 	ws.on("close", () => {
-		const tabletId = ws.id;
-		clientConnections.delete(tabletId);
+		const connectionId = ws.id;
+		clientConnections.delete(connectionId);
+		adminConnections.delete(connectionId);
 		
-		if (connectedTablets.has(tabletId)) {
-			connectedTablets.delete(tabletId);
+		if (connectedTablets.has(connectionId)) {
+			connectedTablets.delete(connectionId);
 			broadcast("tablets-update", Array.from(connectedTablets.values()));
-			console.log(`Tablet disconnected: ${tabletId}`);
+			console.log(`Tablet disconnected: ${connectionId}`);
 		}
 		
-		console.log("Client disconnected:", tabletId);
+		console.log("Client disconnected:", connectionId);
 	});
 	
 	// Handle errors
 	ws.on("error", (error) => {
 		console.error("WebSocket error:", error);
 	});
+	
+	// Send current tablet list to new connections (especially for admins)
+	setTimeout(() => {
+		sendToClient(ws, "tablets-update", Array.from(connectedTablets.values()));
+	}, 1000);
 });
 
 // Event handler
 function handleEvent(ws, event, data, id) {
 	switch (event) {
 		case "register-tablet":
+			// Skip tablet registration for admin clients
+			if (ws.isAdmin) {
+				console.log("Admin client tried to register as tablet - ignoring");
+				sendToClient(ws, "register-tablet-response", {
+					success: false,
+					message: "Admin clients cannot register as tablets",
+				}, id);
+				return;
+			}
 			registerTablet(ws, data, id);
 			break;
 		
@@ -122,7 +155,12 @@ function handleEvent(ws, event, data, id) {
 			break;
 		
 		case "player-signed":
-			handlePlayerSigned(ws, data);
+			handlePlayerSigned(ws, data).then(r => r);
+			break;
+		
+		case "get-tablets":
+			// Send current tablets list to the requesting client
+			sendToClient(ws, "tablets-update", Array.from(connectedTablets.values()));
 			break;
 		
 		default:
@@ -133,6 +171,9 @@ function handleEvent(ws, event, data, id) {
 // Register a tablet
 function registerTablet(ws, { tabletName }, id) {
 	const tabletId = ws.id;
+	
+	// Mark this connection as a tablet
+	ws.isTablet = true;
 	
 	// Store tablet info
 	connectedTablets.set(tabletId, {
@@ -217,8 +258,21 @@ async function handlePlayerSigned(ws, { tabletId, playerName, activityType, sign
 			// Broadcast updated tablet list
 			broadcast("tablets-update", Array.from(connectedTablets.values()));
 		}
+		
+		// Send confirmation to the tablet
+		sendToClient(ws, "signature-confirmed", {
+			playerName,
+			success: true,
+		});
 	} catch (error) {
 		console.error("Error generating PDF:", error);
+		
+		// Send error to the tablet
+		sendToClient(ws, "signature-confirmed", {
+			playerName,
+			success: false,
+			error: error.message,
+		});
 	}
 }
 
@@ -235,8 +289,17 @@ const interval = setInterval(() => {
 	});
 }, 30000);
 
+// Also set up a periodic broadcast of tablet updates to admin clients
+const tabletUpdateInterval = setInterval(() => {
+	if (adminConnections.size > 0 && connectedTablets.size > 0) {
+		console.log("Broadcasting tablet updates to admin clients");
+		broadcast("tablets-update", Array.from(connectedTablets.values()), "admin");
+	}
+}, 10000); // Every 10 seconds
+
 wss.on("close", () => {
 	clearInterval(interval);
+	clearInterval(tabletUpdateInterval);
 });
 
 // Middleware to handle CORS for regular HTTP requests
@@ -261,6 +324,7 @@ app.get("/api/status", (req, res) => {
 		status: "ok",
 		tablets: connectedTablets.size,
 		connections: clientConnections.size,
+		admins: adminConnections.size,
 		uptime: process.uptime(),
 	});
 });

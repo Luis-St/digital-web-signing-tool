@@ -8,8 +8,6 @@ export const useTabletsStore = defineStore("tablets", () => {
 	const storedTabletName = localStorage.getItem("tabletName") || null;
 	const storedTabletAuth = localStorage.getItem("tabletAuth") === "true";
 	
-	const tablets = ref([]);
-	const selectedTabletId = ref(null);
 	const currentTabletId = ref(storedTabletId);
 	const currentTabletName = ref(storedTabletName);
 	const isTabletAuthenticated = ref(storedTabletAuth);
@@ -48,27 +46,27 @@ export const useTabletsStore = defineStore("tablets", () => {
 		autoClose: false, // Don't auto-close on component unmount
 		immediate: false, // Don't connect immediately
 		onConnected() {
-			console.log("WebSocket connected");
+			console.log("Tablet WebSocket connected");
 			
-			// If we have a stored tablet ID, try to re-register with the server
+			// If we have a stored tablet ID, try to reconnect
 			if (isTabletAuthenticated.value && currentTabletId.value && currentTabletName.value) {
 				console.log("Attempting to reconnect tablet:", currentTabletName.value);
 				sendMessage("register-tablet", { tabletName: currentTabletName.value });
 			}
 		},
 		onDisconnected() {
-			console.log("WebSocket disconnected");
+			console.log("Tablet WebSocket disconnected");
 		},
 		onError(err) {
-			console.error("WebSocket error:", err);
+			console.error("Tablet WebSocket error:", err);
 		},
 		onMessage(ws, event) {
 			try {
 				const message = JSON.parse(event.data);
-				console.log("WebSocket message received:", message);
+				console.log("Tablet WebSocket message received:", message);
 				
 				if (message.type === "event") {
-					// Handle event
+					// Handle registered event handlers
 					const handlers = eventHandlers.value.get(message.event) || [];
 					handlers.forEach(handler => handler(message.data));
 				} else if (message.type === "callback" && message.id) {
@@ -95,7 +93,7 @@ export const useTabletsStore = defineStore("tablets", () => {
 		}
 		eventHandlers.value.get(event).push(handler);
 		
-		console.log(`Registered handler for event: ${event}`);
+		console.log(`Registered tablet handler for event: ${event}`);
 	}
 	
 	// Remove event handler
@@ -112,20 +110,23 @@ export const useTabletsStore = defineStore("tablets", () => {
 			eventHandlers.value.delete(event);
 		}
 		
-		console.log(`Removed handler for event: ${event}`);
+		console.log(`Removed tablet handler for event: ${event}`);
 	}
 	
 	// Send message with optional callback
 	function sendMessage(event, data, callback) {
 		if (!isConnected.value) {
-			console.warn("Cannot send message, WebSocket not connected");
+			console.warn("Cannot send message, Tablet WebSocket not connected");
 			return false;
 		}
 		
 		const message = {
 			type: "event",
 			event,
-			data,
+			data: {
+				...data,
+				isAdmin: false, // Explicitly mark as not admin
+			},
 		};
 		
 		if (callback) {
@@ -142,21 +143,21 @@ export const useTabletsStore = defineStore("tablets", () => {
 			}, 10000);
 		}
 		
-		console.log(`Sending message: ${event}`, data);
+		console.log(`Tablet sending message: ${event}`, message.data);
 		sendRaw(JSON.stringify(message));
 		return true;
 	}
 	
 	// Initialize socket connection
 	function initSocket() {
-		console.log("Initializing WebSocket connection");
+		console.log("Initializing Tablet WebSocket connection");
 		
 		// Only open if not already connected
 		if (status.value !== "OPEN") {
 			openConnection();
 			wsInitialized.value = true;
 		} else {
-			console.log("WebSocket already connected");
+			console.log("Tablet WebSocket already connected");
 		}
 	}
 	
@@ -233,24 +234,6 @@ export const useTabletsStore = defineStore("tablets", () => {
 		localStorage.setItem("tabletAuth", "true");
 	}
 	
-	function selectTablet(tabletId) {
-		selectedTabletId.value = tabletId;
-	}
-	
-	function sendPlayersToTablet(players, activityType) {
-		if (!isConnected.value || !selectedTabletId.value) {
-			console.warn("Cannot send players to tablet: not connected or no tablet selected");
-			return false;
-		}
-		
-		console.log("Sending players to tablet:", selectedTabletId.value);
-		return sendMessage("send-players", {
-			tabletId: selectedTabletId.value,
-			players,
-			activityType,
-		});
-	}
-	
 	function disconnectTablet() {
 		console.log("Disconnecting tablet");
 		
@@ -280,8 +263,6 @@ export const useTabletsStore = defineStore("tablets", () => {
 	}, { immediate: true });
 	
 	return {
-		tablets,
-		selectedTabletId,
 		currentTabletId,
 		currentTabletName,
 		isTabletAuthenticated,
@@ -292,10 +273,8 @@ export const useTabletsStore = defineStore("tablets", () => {
 		initSocket,
 		registerTablet,
 		manualAuthenticate,
-		selectTablet,
-		sendPlayersToTablet,
 		disconnectTablet,
 	};
 }, {
-	persist: true,
+	persist: false, // Don't persist to avoid cross-contamination
 });

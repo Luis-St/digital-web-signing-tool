@@ -60,9 +60,9 @@
 		</div>
 
 		<!-- Tablet Content (after authentication) -->
-		<div v-else class="flex-grow flex">
+		<div v-else class="flex-grow flex flex-col">
 			<!-- Idle state - waiting for players -->
-			<div v-if="!currentPlayer" class="w-full flex-grow flex flex-col items-center justify-center p-4 text-center">
+			<div v-if="players.length === 0" class="w-full flex-grow flex flex-col items-center justify-center p-4 text-center">
 				<div class="text-6xl text-primary mb-6">
 					<!-- Icon could go here -->
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -92,65 +92,122 @@
 				</p>
 			</div>
 
-			<!-- Waiver signing interface -->
+			<!-- Waiver signing interface with player list -->
 			<div v-else class="w-full flex-grow flex flex-col">
 				<header class="bg-primary text-white p-4">
 					<div class="container mx-auto">
-						<h1 class="text-xl font-bold">Sign Waiver</h1>
-						<p>{{ currentPlayer.name }}</p>
+						<h1 class="text-xl font-bold">{{ activityTypeLabel }} Waivers</h1>
+						<p>Players: {{ completedCount }}/{{ players.length }} signed</p>
 					</div>
 				</header>
 
-				<div class="flex-grow overflow-y-auto p-4">
-					<div class="card mb-4">
-						<h2 class="text-xl font-semibold mb-4">Waiver Agreement</h2>
+				<div class="flex-grow flex">
+					<!-- Player list sidebar -->
+					<div class="w-1/3 bg-gray-50 border-r border-gray-200 overflow-y-auto">
+						<div class="p-4">
+							<h2 class="text-lg font-medium mb-4">Players</h2>
 
-						<div class="prose max-w-none mb-4">
-							<p class="font-bold">Liability Waiver for {{ activityTypeLabel }}</p>
-
-							<p>
-								I, {{ currentPlayer.name }}, understand that participation in {{ activityTypeLabel }}
-								activities involves inherent risks of injury or damage to myself or others.
-							</p>
-
-							<p>
-								By signing this waiver, I acknowledge these risks and agree to:
-							</p>
-
-							<ol>
-								<li>Follow all safety instructions provided by staff</li>
-								<li>Use all equipment properly and as directed</li>
-								<li>Accept full responsibility for my actions during the activity</li>
-								<li>Pay for any damages I cause to equipment or facilities</li>
-							</ol>
-
-							<p>
-								I hereby release [Company Name], its employees, and representatives from any
-								liability for injuries, damages, or losses that may occur during my participation.
-							</p>
+							<div class="space-y-2">
+								<div
+										v-for="(player, index) in players"
+										:key="index"
+										@click="selectPlayer(index)"
+										class="p-3 rounded-lg cursor-pointer transition-colors duration-150 flex justify-between items-center"
+										:class="{
+                    'bg-primary/10 border-primary': selectedPlayerIndex === index,
+                    'hover:bg-gray-200': selectedPlayerIndex !== index,
+                    'border border-primary': selectedPlayerIndex === index,
+                    'border border-transparent': selectedPlayerIndex !== index
+                  }"
+								>
+									<span class="font-medium truncate">{{ player.name }}</span>
+									<span
+											class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+											:class="{
+                      'bg-green-100 text-green-800': player.signed,
+                      'bg-yellow-100 text-yellow-800': !player.signed
+                    }"
+									>
+                    {{ player.signed ? "Signed" : "Pending" }}
+                  </span>
+								</div>
+							</div>
 						</div>
 					</div>
 
-					<div class="card">
-						<h3 class="text-lg font-medium mb-3">Signature</h3>
-						<p class="text-sm text-gray-500 mb-4">Please sign below to indicate your agreement</p>
+					<!-- Waiver form -->
+					<div class="w-2/3 overflow-y-auto p-4">
+						<div v-if="selectedPlayer" class="space-y-4">
+							<div class="card mb-4">
+								<h2 class="text-xl font-semibold mb-2">Waiver Agreement for {{ selectedPlayer.name }}</h2>
 
-						<div class="border border-gray-300 bg-white rounded-lg mb-4">
-							<SignatureCanvas ref="signaturePad"/>
+								<div class="prose max-w-none mb-4">
+									<p class="font-bold">Liability Waiver for {{ activityTypeLabel }}</p>
+
+									<p>
+										I, <strong>{{ selectedPlayer.name }}</strong>, understand that participation in {{ activityTypeLabel }}
+										activities involves inherent risks of injury or damage to myself or others.
+									</p>
+
+									<p>
+										By signing this waiver, I acknowledge these risks and agree to:
+									</p>
+
+									<ol>
+										<li>Follow all safety instructions provided by staff</li>
+										<li>Use all equipment properly and as directed</li>
+										<li>Accept full responsibility for my actions during the activity</li>
+										<li>Pay for any damages I cause to equipment or facilities</li>
+									</ol>
+
+									<p>
+										I hereby release [Company Name], its employees, and representatives from any
+										liability for injuries, damages, or losses that may occur during my participation.
+									</p>
+								</div>
+							</div>
+
+							<div class="card">
+								<h3 class="text-lg font-medium mb-3">Signature</h3>
+								<p class="text-sm text-gray-500 mb-4">Please sign below to indicate your agreement</p>
+
+								<div class="border border-gray-300 bg-white rounded-lg mb-4">
+									<SignatureCanvas ref="signaturePad"/>
+								</div>
+
+								<div class="flex space-x-3">
+									<button @click="clearSignature" class="btn bg-gray-200 text-gray-700 hover:bg-gray-300">
+										Clear
+									</button>
+									<button
+											@click="submitSignature"
+											class="btn-primary flex-grow"
+											:disabled="!signatureIsValid || !isConnected || selectedPlayer.signed"
+									>
+										{{ selectedPlayer.signed ? "Already Signed" : "I Agree & Sign" }}
+									</button>
+									<button
+											v-if="selectedPlayer.signed"
+											@click="resetSignature"
+											class="btn bg-red-100 text-red-700 hover:bg-red-200"
+									>
+										Reset
+									</button>
+								</div>
+
+								<p v-if="!isConnected" class="text-red-500 text-center mt-2">
+									Currently offline. Please reconnect before signing.
+								</p>
+
+								<div v-if="signatureSubmitted" class="mt-4 p-3 bg-green-50 text-green-700 rounded">
+									Signature submitted successfully!
+								</div>
+							</div>
 						</div>
 
-						<div class="flex space-x-4">
-							<button @click="clearSignature" class="btn bg-gray-200 text-gray-700 hover:bg-gray-300">
-								Clear
-							</button>
-							<button @click="submitSignature" class="btn-primary flex-grow" :disabled="!signatureIsValid || !isConnected">
-								I Agree & Sign
-							</button>
+						<div v-else class="flex items-center justify-center h-full text-gray-500">
+							Please select a player from the list to sign their waiver.
 						</div>
-
-						<p v-if="!isConnected" class="text-red-500 text-center mt-2">
-							Currently offline. Please reconnect before signing.
-						</p>
 					</div>
 				</div>
 			</div>
@@ -181,6 +238,9 @@ const registrationInProgress = ref(false);
 const isTabletAuthenticated = computed(() => tabletsStore.isTabletAuthenticated);
 const isConnected = computed(() => tabletsStore.isConnected);
 
+// UI feedback
+const signatureSubmitted = ref(false);
+
 // Connection status details
 const connectionStatus = computed(() => {
 	if (isConnected.value) return "Connected";
@@ -190,10 +250,13 @@ const connectionStatus = computed(() => {
 
 const connectionStatusDetails = ref("");
 
-// Players state
-const currentPlayer = computed(() => playersStore.currentPlayer);
+// Players state from updated store
+const players = computed(() => playersStore.players);
+const selectedPlayerIndex = computed(() => playersStore.selectedPlayerIndex);
+const selectedPlayer = computed(() => playersStore.selectedPlayer);
 const allSigned = computed(() => playersStore.allSigned);
 const activityType = computed(() => playersStore.activityType);
+const completedCount = computed(() => players.value.filter(p => p.signed).length);
 
 // Computed properties
 const signatureIsValid = computed(() => {
@@ -215,6 +278,19 @@ function handlePlayersAssigned(data) {
 		if (data.activityType) {
 			playersStore.setActivityType(data.activityType);
 		}
+	}
+}
+
+// Handle signature confirmation
+function handleSignatureConfirmed(data) {
+	console.log("Signature confirmation received:", data);
+	if (data && data.success && data.playerName) {
+		signatureSubmitted.value = true;
+
+		// Hide the success message after 3 seconds
+		setTimeout(() => {
+			signatureSubmitted.value = false;
+		}, 3000);
 	}
 }
 
@@ -263,6 +339,16 @@ function useTestMode() {
 
 function resetTablet() {
 	tabletsStore.disconnectTablet();
+	playersStore.resetPlayers();
+}
+
+function selectPlayer(index) {
+	playersStore.selectPlayer(index);
+
+	// Clear signature pad if the selected player hasn't signed yet
+	if (selectedPlayer.value && !selectedPlayer.value.signed && signaturePad.value) {
+		signaturePad.value.clear();
+	}
 }
 
 function clearSignature() {
@@ -271,22 +357,40 @@ function clearSignature() {
 	}
 }
 
+function resetSignature() {
+	if (selectedPlayer.value) {
+		playersStore.resetPlayerSignature(selectedPlayerIndex.value);
+		if (signaturePad.value) {
+			signaturePad.value.clear();
+		}
+	}
+}
+
 function submitSignature() {
-	if (!signatureIsValid.value || !currentPlayer.value || !isConnected.value) return;
+	if (!signatureIsValid.value || !selectedPlayer.value || !isConnected.value || selectedPlayer.value.signed) {
+		return;
+	}
 
 	try {
 		const signatureData = signaturePad.value.getSignatureData();
-		playersStore.markCurrentPlayerSigned(signatureData);
+
+		// Mark the current player as signed
+		playersStore.markSelectedPlayerSigned(signatureData);
+
+		// Reset success message state
+		signatureSubmitted.value = false;
 
 		// Send signature data to server if connected
 		if (isConnected.value && tabletsStore.currentTabletId) {
 			tabletsStore.sendMessage("player-signed", {
 				tabletId: tabletsStore.currentTabletId,
-				playerName: currentPlayer.value.name,
+				playerName: selectedPlayer.value.name,
 				timestamp: new Date().toISOString(),
 				activityType: activityType.value,
 				signatureData,
 			});
+
+			console.log(`Signature for ${selectedPlayer.value.name} sent to server`);
 		} else {
 			console.warn("WebSocket not connected, signature saved locally only");
 		}
@@ -301,9 +405,11 @@ function setupEventHandlers() {
 
 	// Remove any existing handlers to prevent duplicates
 	tabletsStore.off("players-assigned");
+	tabletsStore.off("signature-confirmed");
 
 	// Set up new handlers
 	tabletsStore.on("players-assigned", handlePlayersAssigned);
+	tabletsStore.on("signature-confirmed", handleSignatureConfirmed);
 }
 
 // Connection management
@@ -349,6 +455,7 @@ onMounted(() => {
 		onUnmounted(() => {
 			clearInterval(connectionChecker);
 			tabletsStore.off("players-assigned", handlePlayersAssigned);
+			tabletsStore.off("signature-confirmed", handleSignatureConfirmed);
 		});
 	}
 });
@@ -374,4 +481,27 @@ watch(() => tabletsStore.isTabletAuthenticated, (newValue) => {
 		setupEventHandlers();
 	}
 });
+
+// When selectedPlayer changes, ensure signature pad shows their signature or is cleared
+watch(selectedPlayer, (newPlayer) => {
+	if (newPlayer && signaturePad.value) {
+		// Clear signature pad when switching to a new player
+		signaturePad.value.clear();
+		// Reset success message
+		signatureSubmitted.value = false;
+	}
+});
 </script>
+
+<style scoped>
+.prose ol {
+	list-style-type: decimal;
+	padding-left: 1.5rem;
+	margin-top: 1rem;
+	margin-bottom: 1rem;
+}
+
+.prose ol li {
+	margin-bottom: 0.5rem;
+}
+</style>
