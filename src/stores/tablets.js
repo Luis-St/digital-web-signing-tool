@@ -4,11 +4,9 @@ import { useWebSocket } from "@vueuse/core";
 
 export const useTabletsStore = defineStore("tablets", () => {
 	// Use localStorage to persist tablet authentication state
-	const storedTabletId = localStorage.getItem("tabletId") || null;
 	const storedTabletName = localStorage.getItem("tabletName") || null;
 	const storedTabletAuth = localStorage.getItem("tabletAuth") === "true";
 	
-	const currentTabletId = ref(storedTabletId);
 	const currentTabletName = ref(storedTabletName);
 	const isTabletAuthenticated = ref(storedTabletAuth);
 	const wsInitialized = ref(false);
@@ -48,8 +46,8 @@ export const useTabletsStore = defineStore("tablets", () => {
 		onConnected() {
 			console.log("Tablet WebSocket connected");
 			
-			// If we have a stored tablet ID, try to reconnect
-			if (isTabletAuthenticated.value && currentTabletId.value && currentTabletName.value) {
+			// If we have a stored tablet name, try to reconnect
+			if (isTabletAuthenticated.value && currentTabletName.value) {
 				console.log("Attempting to reconnect tablet:", currentTabletName.value);
 				sendMessage("register-tablet", { tabletName: currentTabletName.value });
 			}
@@ -120,13 +118,21 @@ export const useTabletsStore = defineStore("tablets", () => {
 			return false;
 		}
 		
+		// Always include tablet name in messages if authenticated
+		const messageData = {
+			...data,
+			isAdmin: false, // Explicitly mark as not admin
+		};
+		
+		// Add tablet name to all messages if authenticated
+		if (isTabletAuthenticated.value && currentTabletName.value) {
+			messageData.tabletName = currentTabletName.value;
+		}
+		
 		const message = {
 			type: "event",
 			event,
-			data: {
-				...data,
-				isAdmin: false, // Explicitly mark as not admin
-			},
+			data: messageData,
 		};
 		
 		if (callback) {
@@ -191,11 +197,9 @@ export const useTabletsStore = defineStore("tablets", () => {
 							console.log("Tablet registration successful:", response);
 							
 							// Store tablet info in state and localStorage
-							currentTabletId.value = response.tabletId;
 							currentTabletName.value = tabletName;
 							isTabletAuthenticated.value = true;
 							
-							localStorage.setItem("tabletId", response.tabletId);
 							localStorage.setItem("tabletName", tabletName);
 							localStorage.setItem("tabletAuth", "true");
 							
@@ -225,17 +229,27 @@ export const useTabletsStore = defineStore("tablets", () => {
 	function manualAuthenticate(tabletName) {
 		console.log("Manual tablet authentication for testing");
 		
-		currentTabletId.value = "test-tablet-id";
 		currentTabletName.value = tabletName;
 		isTabletAuthenticated.value = true;
 		
-		localStorage.setItem("tabletId", "test-tablet-id");
 		localStorage.setItem("tabletName", tabletName);
 		localStorage.setItem("tabletAuth", "true");
 	}
 	
 	function disconnectTablet() {
 		console.log("Disconnecting tablet");
+		
+		// Update tablet status to offline before disconnecting
+		if (isConnected.value && currentTabletName.value) {
+			try {
+				sendMessage("update-tablet-status", {
+					tabletName: currentTabletName.value,
+					status: "available",
+				});
+			} catch (error) {
+				console.error("Error updating tablet status:", error);
+			}
+		}
 		
 		if (wsInitialized.value && status.value !== "CLOSED") {
 			try {
@@ -246,11 +260,9 @@ export const useTabletsStore = defineStore("tablets", () => {
 		}
 		
 		wsInitialized.value = false;
-		currentTabletId.value = null;
 		currentTabletName.value = null;
 		isTabletAuthenticated.value = false;
 		
-		localStorage.removeItem("tabletId");
 		localStorage.removeItem("tabletName");
 		localStorage.removeItem("tabletAuth");
 	}
@@ -263,7 +275,6 @@ export const useTabletsStore = defineStore("tablets", () => {
 	}, { immediate: true });
 	
 	return {
-		currentTabletId,
 		currentTabletName,
 		isTabletAuthenticated,
 		isConnected,

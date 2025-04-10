@@ -13,7 +13,7 @@ export const useAdminStore = defineStore("admin", () => {
 	// WebSocket connection state
 	const tablets = ref([]);
 	const wsInitialized = ref(false);
-	const selectedTabletId = ref(null);
+	const selectedTabletName = ref(null);
 	
 	// WebSocket connection using VueUse
 	const socketUrl = computed(() => import.meta.env.VITE_SOCKET_URL || "ws://localhost:5000");
@@ -90,6 +90,12 @@ export const useAdminStore = defineStore("admin", () => {
 	
 	// Computed property for connection status
 	const isConnected = computed(() => status.value === "OPEN");
+	
+	// Computed property for the selected tablet object
+	const selectedTablet = computed(() => {
+		if (!selectedTabletName.value) return null;
+		return tablets.value.find(tablet => tablet.name === selectedTabletName.value) || null;
+	});
 	
 	// Initialize WebSocket connection
 	function initWebSocket() {
@@ -181,22 +187,22 @@ export const useAdminStore = defineStore("admin", () => {
 		}
 	}
 	
-	// Select a tablet
-	function selectTablet(tabletId) {
-		selectedTabletId.value = tabletId;
-		console.log("Admin selected tablet:", tabletId);
+	// Select a tablet by name
+	function selectTablet(tabletName) {
+		selectedTabletName.value = tabletName;
+		console.log("Admin selected tablet:", tabletName);
 	}
 	
-	// Send players to tablet - UPDATED to send playerCount instead of player names
+	// Send player count to tablet by name
 	function sendPlayersToTablet(playerCount, activityType) {
-		if (!isConnected.value || !selectedTabletId.value) {
+		if (!isConnected.value || !selectedTabletName.value) {
 			console.warn("Cannot send players to tablet: not connected or no tablet selected");
 			return false;
 		}
 		
-		console.log("Admin sending player count to tablet:", { playerCount, activityType });
+		console.log("Admin sending player count to tablet:", { tabletName: selectedTabletName.value, playerCount, activityType });
 		return sendMessage("send-players", {
-			tabletId: selectedTabletId.value,
+			tabletName: selectedTabletName.value,
 			playerCount,
 			activityType,
 		});
@@ -265,7 +271,8 @@ export const useAdminStore = defineStore("admin", () => {
 		
 		// WebSocket related
 		tablets,
-		selectedTabletId,
+		selectedTabletName,
+		selectedTablet,
 		isConnected,
 		initWebSocket,
 		refreshTablets,

@@ -22,9 +22,11 @@ if (!fs.existsSync(storageDir)) {
 }
 
 // Track connected tablets and admin clients
+// Now using tablet name as the key instead of connection ID
 const connectedTablets = new Map();
-const clientConnections = new Map();
-const adminConnections = new Map();
+const tabletConnections = new Map(); // Maps tablet names to their connection objects
+const clientConnections = new Map(); // Maps connection IDs to connection objects
+const adminConnections = new Set(); // Just store admin connection objects
 
 // Heartbeat functionality to detect dead connections
 function heartbeat() {
@@ -72,6 +74,7 @@ wss.on("connection", (ws, req) => {
 	ws.id = connectionId;
 	ws.isAdmin = false; // Default - not an admin until proven otherwise
 	ws.isTablet = false; // Default - not a tablet until registered
+	ws.tabletName = null; // Will be set during registration
 	
 	// Setup heartbeat
 	ws.isAlive = true;
@@ -89,9 +92,9 @@ wss.on("connection", (ws, req) => {
 			// Check if this is an admin client
 			if (data && data.isAdmin) {
 				ws.isAdmin = true;
-				if (!adminConnections.has(connectionId)) {
+				if (!adminConnections.has(ws)) {
 					console.log(`Marking client ${connectionId} as admin`);
-					adminConnections.set(connectionId, ws);
+					adminConnections.add(ws);
 				}
 			}
 			
@@ -112,12 +115,21 @@ wss.on("connection", (ws, req) => {
 	ws.on("close", () => {
 		const connectionId = ws.id;
 		clientConnections.delete(connectionId);
-		adminConnections.delete(connectionId);
+		adminConnections.delete(ws);
 		
-		if (connectedTablets.has(connectionId)) {
-			connectedTablets.delete(connectionId);
-			broadcast("tablets-update", Array.from(connectedTablets.values()));
-			console.log(`Tablet disconnected: ${connectionId}`);
+		// If this was a tablet, mark it as disconnected but DON'T remove it
+		// This allows reconnection with the same tablet name
+		if (ws.isTablet && ws.tabletName) {
+			const tabletName = ws.tabletName;
+			if (connectedTablets.has(tabletName)) {
+				const tablet = connectedTablets.get(tabletName);
+				tablet.connected = false;
+				tabletConnections.delete(tabletName);
+				
+				// Broadcast the status change
+				broadcast("tablets-update", Array.from(connectedTablets.values()));
+				console.log(`Tablet disconnected: ${tabletName}`);
+			}
 		}
 		
 		console.log("Client disconnected:", connectionId);
@@ -130,7 +142,10 @@ wss.on("connection", (ws, req) => {
 	
 	// Send current tablet list to new connections (especially for admins)
 	setTimeout(() => {
-		sendToClient(ws, "tablets-update", Array.from(connectedTablets.values()));
+		const tablets = Array.from(connectedTablets.values())
+			.filter(tablet => tablet.connected); // Only send connected tablets
+		
+		sendToClient(ws, "tablets-update", tablets);
 	}, 1000);
 });
 
@@ -158,9 +173,16 @@ function handleEvent(ws, event, data, id) {
 			handlePlayerSigned(ws, data).then(r => r);
 			break;
 		
+		case "update-tablet-status":
+			updateTabletStatus(ws, data);
+			break;
+		
 		case "get-tablets":
 			// Send current tablets list to the requesting client
-			sendToClient(ws, "tablets-update", Array.from(connectedTablets.values()));
+			const tablets = Array.from(connectedTablets.values())
+				.filter(tablet => tablet.connected);
+			
+			sendToClient(ws, "tablets-update", tablets);
 			break;
 		
 		default:
@@ -170,41 +192,65 @@ function handleEvent(ws, event, data, id) {
 
 // Register a tablet
 function registerTablet(ws, { tabletName }, id) {
-	const tabletId = ws.id;
+	if (!tabletName) {
+		sendToClient(ws, "register-tablet-response", {
+			success: false,
+			message: "Tablet name is required",
+		}, id);
+		return;
+	}
 	
 	// Mark this connection as a tablet
 	ws.isTablet = true;
+	ws.tabletName = tabletName;
 	
-	// Store tablet info
-	connectedTablets.set(tabletId, {
-		id: tabletId,
-		name: tabletName,
-		status: "available",
-		players: [],
-	});
+	// Check if this tablet name already exists
+	let tabletData;
+	if (connectedTablets.has(tabletName)) {
+		// Update existing tablet with new connection
+		tabletData = connectedTablets.get(tabletName);
+		tabletData.connected = true;
+		
+		console.log(`Tablet reconnected: ${tabletName}`);
+	} else {
+		// Create new tablet entry
+		tabletData = {
+			name: tabletName,
+			status: "available",
+			players: [],
+			connected: true,
+		};
+		connectedTablets.set(tabletName, tabletData);
+		
+		console.log(`New tablet registered: ${tabletName}`);
+	}
+	
+	// Map this tablet name to the connection
+	tabletConnections.set(tabletName, ws);
 	
 	// Broadcast updated tablet list to all clients
-	broadcast("tablets-update", Array.from(connectedTablets.values()));
+	const tablets = Array.from(connectedTablets.values())
+		.filter(tablet => tablet.connected);
+	
+	broadcast("tablets-update", tablets);
 	
 	// Confirm registration with callback
 	if (id) {
 		sendToClient(ws, "register-tablet-response", {
 			success: true,
-			tabletId,
+			tabletName,
 		}, id);
 	}
-	
-	console.log(`Tablet registered: ${tabletName} (${tabletId})`);
 }
 
-// Send players to a tablet - UPDATED to send playerCount instead of player names
-function sendPlayersToTablet(ws, { tabletId, playerCount, activityType }) {
-	// Find the target client by ID
-	const targetClient = clientConnections.get(tabletId);
+// Send players to a tablet - sending player count instead of player names
+function sendPlayersToTablet(ws, { tabletName, playerCount, activityType }) {
+	// Find the target client by tablet name
+	const targetClient = tabletConnections.get(tabletName);
 	
-	if (targetClient && connectedTablets.has(tabletId)) {
+	if (targetClient && connectedTablets.has(tabletName)) {
 		// Update tablet status
-		const tablet = connectedTablets.get(tabletId);
+		const tablet = connectedTablets.get(tabletName);
 		tablet.status = "busy";
 		tablet.players = []; // Initialize empty array - player names will be set on the tablet
 		
@@ -215,17 +261,59 @@ function sendPlayersToTablet(ws, { tabletId, playerCount, activityType }) {
 		});
 		
 		// Broadcast updated tablet list
-		broadcast("tablets-update", Array.from(connectedTablets.values()));
+		const tablets = Array.from(connectedTablets.values())
+			.filter(tablet => tablet.connected);
+		
+		broadcast("tablets-update", tablets);
 		
 		console.log(`Sent player count ${playerCount} to tablet ${tablet.name}`);
 	} else {
-		console.warn(`Cannot find tablet with ID: ${tabletId}`);
+		console.warn(`Cannot find tablet with name: ${tabletName}`);
 	}
 }
 
+// Update tablet status
+function updateTabletStatus(ws, { tabletName, status }) {
+	if (!ws.isTablet) {
+		console.warn("Non-tablet client tried to update tablet status");
+		return;
+	}
+	
+	// Use the sender's tablet name if not specified
+	tabletName = tabletName || ws.tabletName;
+	
+	if (!tabletName || !connectedTablets.has(tabletName)) {
+		console.warn(`Cannot update status for unknown tablet: ${tabletName}`);
+		return;
+	}
+	
+	// Update tablet status
+	const tablet = connectedTablets.get(tabletName);
+	tablet.status = status;
+	
+	console.log(`Updated tablet ${tablet.name} status to: ${status}`);
+	
+	// If status is "available", clear the players array
+	if (status === "available") {
+		tablet.players = [];
+	}
+	
+	// Broadcast updated tablet list
+	const tablets = Array.from(connectedTablets.values())
+		.filter(tablet => tablet.connected);
+	
+	broadcast("tablets-update", tablets);
+}
+
 // Handle player signature
-async function handlePlayerSigned(ws, { tabletId, playerName, activityType, signatureData }) {
-	if (!connectedTablets.has(tabletId)) return;
+async function handlePlayerSigned(ws, { tabletName, playerName, activityType, signatureData }) {
+	// Use the sender's tablet name if not specified
+	tabletName = tabletName || ws.tabletName;
+	
+	if (!tabletName || !connectedTablets.has(tabletName)) {
+		console.warn(`Cannot process signature for unknown tablet: ${tabletName}`);
+		return;
+	}
 	
 	try {
 		// Generate PDF with signature
@@ -241,10 +329,6 @@ async function handlePlayerSigned(ws, { tabletId, playerName, activityType, sign
 		});
 		
 		console.log(`Waiver PDF created for ${playerName} at ${filePath}`);
-		
-		// Update tablet's player list if needed
-		const tablet = connectedTablets.get(tabletId);
-		// The tablet now manages its own player list
 		
 		// Send confirmation to the tablet
 		sendToClient(ws, "signature-confirmed", {
@@ -280,7 +364,10 @@ const interval = setInterval(() => {
 const tabletUpdateInterval = setInterval(() => {
 	if (adminConnections.size > 0 && connectedTablets.size > 0) {
 		console.log("Broadcasting tablet updates to admin clients");
-		broadcast("tablets-update", Array.from(connectedTablets.values()), "admin");
+		
+		const tablets = Array.from(connectedTablets.values()).filter(tablet => tablet.connected);
+		
+		broadcast("tablets-update", tablets, "admin");
 	}
 }, 10000); // Every 10 seconds
 
@@ -307,9 +394,12 @@ if (process.env.NODE_ENV === "production") {
 
 // API endpoint to check server status
 app.get("/api/status", (req, res) => {
+	const connectedTabletCount = Array.from(connectedTablets.values())
+		.filter(tablet => tablet.connected).length;
+	
 	res.json({
 		status: "ok",
-		tablets: connectedTablets.size,
+		tablets: connectedTabletCount,
 		connections: clientConnections.size,
 		admins: adminConnections.size,
 		uptime: process.uptime(),

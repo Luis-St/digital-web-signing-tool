@@ -7,7 +7,7 @@
 				<span v-if="!isConnected" class="text-red-500 ml-2">{{ connectionStatusDetails }}</span>
 			</p>
 			<p>Connected tablets: {{ tablets.length }}</p>
-			<p>Selected tablet: {{ selectedTabletId || "None" }}</p>
+			<p>Selected tablet: {{ selectedTabletName || "None" }}</p>
 			<div class="flex space-x-2 mt-1">
 				<button @click="showDebug = false" class="text-blue-500 underline">Hide</button>
 				<button @click="refreshTabletsList" class="text-green-500 underline">Refresh Tablets</button>
@@ -141,12 +141,12 @@
 					<div v-else class="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
 						<div
 								v-for="tablet in tablets"
-								:key="tablet.id"
-								@click="selectTablet(tablet.id)"
+								:key="tablet.name"
+								@click="selectTablet(tablet.name)"
 								class="p-4 border rounded-lg cursor-pointer transition-colors duration-200 flex flex-col"
 								:class="{
-									'bg-primary/10 border-primary shadow': selectedTabletId === tablet.id,
-									'hover:bg-gray-50': selectedTabletId !== tablet.id
+									'bg-primary/10 border-primary shadow': selectedTabletName === tablet.name,
+									'hover:bg-gray-50': selectedTabletName !== tablet.name
 								}"
 						>
 							<div class="flex justify-between items-center mb-3">
@@ -162,12 +162,14 @@
 								</span>
 							</div>
 							<div class="text-sm text-gray-500">
-								<p>ID: {{ tablet.id.substring(0, 8) }}...</p>
 								<p v-if="tablet.players && tablet.players.length">
 									Players: {{ tablet.players.length }}
 								</p>
+								<p v-else class="text-sm text-gray-400">
+									No active players
+								</p>
 							</div>
-							<div v-if="selectedTabletId === tablet.id" class="mt-3 pt-3 border-t border-primary/30">
+							<div v-if="selectedTabletName === tablet.name" class="mt-3 pt-3 border-t border-primary/30">
 								<p class="text-primary font-medium">Selected</p>
 							</div>
 						</div>
@@ -208,7 +210,7 @@ const playerCount = ref(1);
 const activityType = ref("laser-tag");
 
 // Tablets data is now directly from the admin store
-const selectedTabletId = computed(() => adminStore.selectedTabletId);
+const selectedTabletName = computed(() => adminStore.selectedTabletName);
 
 // WebSocket connection status
 const isConnected = computed(() => adminStore.isConnected);
@@ -220,13 +222,13 @@ const connectionStatusDetails = ref("");
 
 // Computed properties
 const canSendToTablet = computed(() => {
-	return selectedTabletId.value &&
+	return selectedTabletName.value &&
 		playerCount.value > 0 &&
 		isConnected.value;
 });
 
 const tablets = computed(() => {
-	return adminStore.tablets;
+	return adminStore.tablets.filter(tablet => tablet.connected !== false);
 });
 
 // Initialize required data
@@ -280,8 +282,8 @@ function forceRefresh() {
 	}, 1000);
 }
 
-function selectTablet(tabletId) {
-	adminStore.selectTablet(tabletId);
+function selectTablet(tabletName) {
+	adminStore.selectTablet(tabletName);
 }
 
 function sendToTablet() {

@@ -339,7 +339,7 @@ function handlePlayersAssigned(data) {
 
 		// Create empty player setup fields
 		playerSetupFields.value = Array.from({ length: playerCount.value }, (_, i) => ({
-			name: ""
+			name: "",
 		}));
 
 		// Enter setup mode
@@ -372,12 +372,26 @@ function handleSignatureConfirmed(data) {
 	}
 }
 
+// Update tablet status on the server
+function updateTabletStatus(status) {
+	if (isConnected.value && tabletName.value) {
+		console.log(`Updating tablet status to: ${status}`);
+		tabletsStore.sendMessage("update-tablet-status", {
+			tabletName: tabletName.value,
+			status: status,
+		});
+	}
+}
+
 // Auto-reset after all signatures
 function setupAutoReset() {
 	// Clear any existing timer
 	if (autoResetTimer) {
 		clearTimeout(autoResetTimer);
 	}
+
+	// First, update the tablet status to available
+	updateTabletStatus("available");
 
 	// Set a new timer to reset after 5 seconds
 	autoResetTimer = setTimeout(() => {
@@ -439,6 +453,9 @@ function useTestMode() {
 }
 
 function resetTablet() {
+	// Update tablet status before disconnecting
+	updateTabletStatus("available");
+
 	tabletsStore.disconnectTablet();
 	playersStore.resetPlayers();
 	setupMode.value = false;
@@ -488,9 +505,9 @@ function submitSignature() {
 		signatureSubmitted.value = false;
 
 		// Send signature data to server if connected
-		if (isConnected.value && tabletsStore.currentTabletId) {
+		if (isConnected.value && tabletName.value) {
 			tabletsStore.sendMessage("player-signed", {
-				tabletId: tabletsStore.currentTabletId,
+				tabletName: tabletName.value,
 				playerName: selectedPlayer.value.name,
 				activityType: activityType.value,
 				signatureData,
