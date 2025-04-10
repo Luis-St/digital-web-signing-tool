@@ -2,8 +2,7 @@
 	<div class="signature-canvas">
 		<canvas
 				ref="canvas"
-				class="w-full touch-none"
-				style="height: 200px"
+				class="w-full h-full touch-none"
 				@mousedown="startDrawing"
 				@mousemove="draw"
 				@mouseup="stopDrawing"
@@ -27,7 +26,7 @@ const lastX = ref(0);
 const lastY = ref(0);
 
 // Define emits
-const emit = defineEmits(["signature-change"]);
+const emit = defineEmits(['signature-change']);
 
 // Expose methods to parent component
 defineExpose({
@@ -101,14 +100,14 @@ function draw(event) {
 	lastY.value = currentY;
 
 	// Emit change event after drawing
-	emit("signature-change", isEmpty());
+	emit('signature-change', isEmpty());
 }
 
 function stopDrawing() {
 	if (isDrawing.value) {
 		isDrawing.value = false;
 		// Emit change event when stopping drawing
-		emit("signature-change", isEmpty());
+		emit('signature-change', isEmpty());
 	}
 }
 
@@ -148,7 +147,7 @@ function handleTouchMove(event) {
 		lastY.value = currentY;
 
 		// Emit change event after drawing
-		emit("signature-change", isEmpty());
+		emit('signature-change', isEmpty());
 	}
 }
 
@@ -157,7 +156,7 @@ function clear() {
 	const ctx = context.value;
 	ctx.clearRect(0, 0, canvas.value.width, canvas.value.height);
 	// Emit change event after clearing
-	emit("signature-change", true);
+	emit('signature-change', true);
 }
 
 function isEmpty() {
@@ -176,5 +175,7 @@ function getSignatureData() {
 <style scoped>
 .signature-canvas {
 	touch-action: none; /* Prevents browser handling of touch events */
+	height: 100%; /* Take up the full height of the container */
+	width: 100%;
 }
 </style>

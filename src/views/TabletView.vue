@@ -210,7 +210,8 @@
 								<h3 class="text-lg font-medium mb-3">Signature</h3>
 								<p class="text-sm text-gray-500 mb-4">Please sign below to indicate your agreement</p>
 
-								<div class="border border-gray-300 bg-white rounded-lg mb-4">
+								<!-- Increased the height of the signature canvas -->
+								<div class="border border-gray-300 bg-white rounded-lg mb-4 signature-container">
 									<SignatureCanvas ref="signaturePad" @signature-change="handleSignatureChange"/>
 								</div>
 
@@ -287,6 +288,9 @@ const activityTypeFromAdmin = ref("");
 const signatureSubmitted = ref(false);
 const hasDrawnSignature = ref(false);
 
+// Auto-reset timer
+let autoResetTimer = null;
+
 // Connection status details
 const connectionStatus = computed(() => {
 	if (isConnected.value) return "Connected";
@@ -335,7 +339,7 @@ function handlePlayersAssigned(data) {
 
 		// Create empty player setup fields
 		playerSetupFields.value = Array.from({ length: playerCount.value }, (_, i) => ({
-			name: "",
+			name: ""
 		}));
 
 		// Enter setup mode
@@ -366,6 +370,29 @@ function handleSignatureConfirmed(data) {
 			signatureSubmitted.value = false;
 		}, 3000);
 	}
+}
+
+// Auto-reset after all signatures
+function setupAutoReset() {
+	// Clear any existing timer
+	if (autoResetTimer) {
+		clearTimeout(autoResetTimer);
+	}
+
+	// Set a new timer to reset after 5 seconds
+	autoResetTimer = setTimeout(() => {
+		console.log("Auto-resetting tablet after all signatures");
+		resetPlayersOnly();
+	}, 5000);
+}
+
+// Reset only the players list, keeping tablet registered
+function resetPlayersOnly() {
+	playersStore.resetPlayers();
+	setupMode.value = false;
+	playerCount.value = 0;
+	playerSetupFields.value = [];
+	hasDrawnSignature.value = false;
 }
 
 // Force reconnection
@@ -536,6 +563,9 @@ onMounted(() => {
 		// Clean up on unmount
 		onUnmounted(() => {
 			clearInterval(connectionChecker);
+			if (autoResetTimer) {
+				clearTimeout(autoResetTimer);
+			}
 			tabletsStore.off("players-assigned", handlePlayersAssigned);
 			tabletsStore.off("signature-confirmed", handleSignatureConfirmed);
 		});
@@ -574,6 +604,14 @@ watch(selectedPlayer, (newPlayer) => {
 		signatureSubmitted.value = false;
 	}
 });
+
+// Watch allSigned to auto-reset after all waivers are completed
+watch(allSigned, (newValue) => {
+	if (newValue && players.value.length > 0) {
+		console.log("All signatures completed, setting up auto-reset");
+		setupAutoReset();
+	}
+});
 </script>
 
 <style scoped>
@@ -586,5 +624,10 @@ watch(selectedPlayer, (newPlayer) => {
 
 .prose ol li {
 	margin-bottom: 0.5rem;
+}
+
+/* Larger signature canvas */
+.signature-container {
+	height: 300px; /* Increased from 200px */
 }
 </style>
