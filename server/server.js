@@ -197,8 +197,8 @@ function registerTablet(ws, { tabletName }, id) {
 	console.log(`Tablet registered: ${tabletName} (${tabletId})`);
 }
 
-// Send players to a tablet
-function sendPlayersToTablet(ws, { tabletId, players, activityType }) {
+// Send players to a tablet - UPDATED to send playerCount instead of player names
+function sendPlayersToTablet(ws, { tabletId, playerCount, activityType }) {
 	// Find the target client by ID
 	const targetClient = clientConnections.get(tabletId);
 	
@@ -206,18 +206,18 @@ function sendPlayersToTablet(ws, { tabletId, players, activityType }) {
 		// Update tablet status
 		const tablet = connectedTablets.get(tabletId);
 		tablet.status = "busy";
-		tablet.players = players;
+		tablet.players = []; // Initialize empty array - player names will be set on the tablet
 		
-		// Send players to the tablet
+		// Send player count and activity type to the tablet
 		sendToClient(targetClient, "players-assigned", {
-			players,
+			playerCount,
 			activityType,
 		});
 		
 		// Broadcast updated tablet list
 		broadcast("tablets-update", Array.from(connectedTablets.values()));
 		
-		console.log(`Sent ${players.length} players to tablet ${tablet.name}`);
+		console.log(`Sent player count ${playerCount} to tablet ${tablet.name}`);
 	} else {
 		console.warn(`Cannot find tablet with ID: ${tabletId}`);
 	}
@@ -242,22 +242,9 @@ async function handlePlayerSigned(ws, { tabletId, playerName, activityType, sign
 		
 		console.log(`Waiver PDF created for ${playerName} at ${filePath}`);
 		
-		// Check if all players have signed
+		// Update tablet's player list if needed
 		const tablet = connectedTablets.get(tabletId);
-		const signedPlayerIndex = tablet.players.indexOf(playerName);
-		
-		if (signedPlayerIndex !== -1) {
-			// Remove player from the list
-			tablet.players.splice(signedPlayerIndex, 1);
-			
-			// Update tablet status if all players have signed
-			if (tablet.players.length === 0) {
-				tablet.status = "available";
-			}
-			
-			// Broadcast updated tablet list
-			broadcast("tablets-update", Array.from(connectedTablets.values()));
-		}
+		// The tablet now manages its own player list
 		
 		// Send confirmation to the tablet
 		sendToClient(ws, "signature-confirmed", {

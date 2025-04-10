@@ -7,6 +7,7 @@
 			<p>Socket status: {{ connectionStatus }}
 				<span v-if="!isConnected" class="text-red-500 ml-2">{{ connectionStatusDetails }}</span>
 			</p>
+			<p>Signature Valid: {{ signatureIsValid }}</p>
 			<div class="flex space-x-2 mt-1">
 				<button @click="showDebug = false" class="text-blue-500 underline">Hide</button>
 				<button v-if="!isTabletAuthenticated" @click="useTestMode" class="text-green-500 underline">Test Mode</button>
@@ -62,7 +63,7 @@
 		<!-- Tablet Content (after authentication) -->
 		<div v-else class="flex-grow flex flex-col">
 			<!-- Idle state - waiting for players -->
-			<div v-if="players.length === 0" class="w-full flex-grow flex flex-col items-center justify-center p-4 text-center">
+			<div v-if="players.length === 0 && !setupMode" class="w-full flex-grow flex flex-col items-center justify-center p-4 text-center">
 				<div class="text-6xl text-primary mb-6">
 					<!-- Icon could go here -->
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -77,6 +78,44 @@
 					Currently offline. Please check your connection.
 					<button @click="reconnect" class="underline ml-2">Reconnect</button>
 				</p>
+			</div>
+
+			<!-- Player names setup screen -->
+			<div v-else-if="setupMode" class="w-full flex-grow flex flex-col p-4">
+				<header class="bg-primary text-white p-4 mb-6 rounded">
+					<div class="container mx-auto">
+						<h1 class="text-xl font-bold">{{ activityTypeLabel }} Player Setup</h1>
+						<p>Enter names for all {{ playerCount }} players</p>
+					</div>
+				</header>
+
+				<div class="card mb-6">
+					<h2 class="text-lg font-medium mb-4">Player Names</h2>
+
+					<div class="space-y-3">
+						<div v-for="(player, index) in playerSetupFields" :key="`setup-${index}`" class="flex items-center space-x-2">
+							<div class="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center font-semibold">
+								{{ index + 1 }}
+							</div>
+							<input
+									v-model="player.name"
+									:placeholder="`Player ${index + 1} name`"
+									class="input flex-grow"
+									required
+							/>
+						</div>
+					</div>
+				</div>
+
+				<div class="flex justify-end">
+					<button
+							@click="confirmPlayerNames"
+							class="btn-primary"
+							:disabled="!allPlayerNamesValid"
+					>
+						Start Signing Waivers
+					</button>
+				</div>
 			</div>
 
 			<!-- Welcome screen (after all players have signed) -->
@@ -172,7 +211,7 @@
 								<p class="text-sm text-gray-500 mb-4">Please sign below to indicate your agreement</p>
 
 								<div class="border border-gray-300 bg-white rounded-lg mb-4">
-									<SignatureCanvas ref="signaturePad"/>
+									<SignatureCanvas ref="signaturePad" @signature-change="handleSignatureChange"/>
 								</div>
 
 								<div class="flex space-x-3">
@@ -238,8 +277,15 @@ const registrationInProgress = ref(false);
 const isTabletAuthenticated = computed(() => tabletsStore.isTabletAuthenticated);
 const isConnected = computed(() => tabletsStore.isConnected);
 
+// Setup mode for player names
+const setupMode = ref(false);
+const playerCount = ref(0);
+const playerSetupFields = ref([]);
+const activityTypeFromAdmin = ref("");
+
 // UI feedback
 const signatureSubmitted = ref(false);
+const hasDrawnSignature = ref(false);
 
 // Connection status details
 const connectionStatus = computed(() => {
@@ -255,12 +301,12 @@ const players = computed(() => playersStore.players);
 const selectedPlayerIndex = computed(() => playersStore.selectedPlayerIndex);
 const selectedPlayer = computed(() => playersStore.selectedPlayer);
 const allSigned = computed(() => playersStore.allSigned);
-const activityType = computed(() => playersStore.activityType);
+const activityType = computed(() => playersStore.activityType || activityTypeFromAdmin.value);
 const completedCount = computed(() => players.value.filter(p => p.signed).length);
 
 // Computed properties
 const signatureIsValid = computed(() => {
-	return signaturePad.value && !signaturePad.value.isEmpty();
+	return signaturePad.value && hasDrawnSignature.value && !signaturePad.value.isEmpty();
 });
 
 const activityTypeLabel = computed(() => {
@@ -269,16 +315,44 @@ const activityTypeLabel = computed(() => {
 	return "Activity";
 });
 
-// Handle players-assigned event
+const allPlayerNamesValid = computed(() => {
+	return playerSetupFields.value.length > 0 &&
+		playerSetupFields.value.every(p => p.name && p.name.trim() !== "");
+});
+
+// Handle signature change
+function handleSignatureChange(isEmpty) {
+	hasDrawnSignature.value = !isEmpty;
+	console.log("Signature changed, is empty:", isEmpty);
+}
+
+// Handle players-assigned event - now receiving player count instead of names
 function handlePlayersAssigned(data) {
 	console.log("Received players assignment:", data);
-	if (data && data.players && Array.isArray(data.players)) {
-		playersStore.setPlayers(data.players);
+	if (data && data.playerCount && data.activityType) {
+		playerCount.value = data.playerCount;
+		activityTypeFromAdmin.value = data.activityType;
 
-		if (data.activityType) {
-			playersStore.setActivityType(data.activityType);
-		}
+		// Create empty player setup fields
+		playerSetupFields.value = Array.from({ length: playerCount.value }, (_, i) => ({
+			name: "",
+		}));
+
+		// Enter setup mode
+		setupMode.value = true;
 	}
+}
+
+// Confirm player names and start waiver signing
+function confirmPlayerNames() {
+	if (!allPlayerNamesValid.value) return;
+
+	const playerNames = playerSetupFields.value.map(p => p.name.trim());
+	playersStore.setPlayers(playerNames);
+	playersStore.setActivityType(activityTypeFromAdmin.value);
+
+	// Exit setup mode to show waiver signing interface
+	setupMode.value = false;
 }
 
 // Handle signature confirmation
@@ -340,6 +414,9 @@ function useTestMode() {
 function resetTablet() {
 	tabletsStore.disconnectTablet();
 	playersStore.resetPlayers();
+	setupMode.value = false;
+	playerCount.value = 0;
+	playerSetupFields.value = [];
 }
 
 function selectPlayer(index) {
@@ -348,12 +425,14 @@ function selectPlayer(index) {
 	// Clear signature pad if the selected player hasn't signed yet
 	if (selectedPlayer.value && !selectedPlayer.value.signed && signaturePad.value) {
 		signaturePad.value.clear();
+		hasDrawnSignature.value = false;
 	}
 }
 
 function clearSignature() {
 	if (signaturePad.value) {
 		signaturePad.value.clear();
+		hasDrawnSignature.value = false;
 	}
 }
 
@@ -362,6 +441,7 @@ function resetSignature() {
 		playersStore.resetPlayerSignature(selectedPlayerIndex.value);
 		if (signaturePad.value) {
 			signaturePad.value.clear();
+			hasDrawnSignature.value = false;
 		}
 	}
 }
@@ -385,7 +465,6 @@ function submitSignature() {
 			tabletsStore.sendMessage("player-signed", {
 				tabletId: tabletsStore.currentTabletId,
 				playerName: selectedPlayer.value.name,
-				timestamp: new Date().toISOString(),
 				activityType: activityType.value,
 				signatureData,
 			});
@@ -394,6 +473,9 @@ function submitSignature() {
 		} else {
 			console.warn("WebSocket not connected, signature saved locally only");
 		}
+
+		// Reset the drawn signature state
+		hasDrawnSignature.value = false;
 	} catch (error) {
 		console.error("Error submitting signature:", error);
 	}
@@ -487,6 +569,7 @@ watch(selectedPlayer, (newPlayer) => {
 	if (newPlayer && signaturePad.value) {
 		// Clear signature pad when switching to a new player
 		signaturePad.value.clear();
+		hasDrawnSignature.value = false;
 		// Reset success message
 		signatureSubmitted.value = false;
 	}

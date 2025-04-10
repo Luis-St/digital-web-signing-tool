@@ -26,6 +26,9 @@ const isDrawing = ref(false);
 const lastX = ref(0);
 const lastY = ref(0);
 
+// Define emits
+const emit = defineEmits(["signature-change"]);
+
 // Expose methods to parent component
 defineExpose({
 	clear,
@@ -96,10 +99,17 @@ function draw(event) {
 
 	lastX.value = currentX;
 	lastY.value = currentY;
+
+	// Emit change event after drawing
+	emit("signature-change", isEmpty());
 }
 
 function stopDrawing() {
-	isDrawing.value = false;
+	if (isDrawing.value) {
+		isDrawing.value = false;
+		// Emit change event when stopping drawing
+		emit("signature-change", isEmpty());
+	}
 }
 
 // Touch events
@@ -136,6 +146,9 @@ function handleTouchMove(event) {
 
 		lastX.value = currentX;
 		lastY.value = currentY;
+
+		// Emit change event after drawing
+		emit("signature-change", isEmpty());
 	}
 }
 
@@ -143,6 +156,8 @@ function handleTouchMove(event) {
 function clear() {
 	const ctx = context.value;
 	ctx.clearRect(0, 0, canvas.value.width, canvas.value.height);
+	// Emit change event after clearing
+	emit("signature-change", true);
 }
 
 function isEmpty() {
