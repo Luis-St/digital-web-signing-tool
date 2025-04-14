@@ -222,9 +222,11 @@ const connectionStatusDetails = ref("");
 
 // Computed properties
 const canSendToTablet = computed(() => {
+	// Added check for tablet status not being "busy"
 	return selectedTabletName.value &&
 		playerCount.value > 0 &&
-		isConnected.value;
+		isConnected.value &&
+		(adminStore.selectedTablet && adminStore.selectedTablet.status !== "busy");
 });
 
 const tablets = computed(() => {
