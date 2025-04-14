@@ -498,6 +498,11 @@ function submitSignature() {
 	try {
 		const signatureData = signaturePad.value.getSignatureData();
 
+		// Store the current player name and activity type before marking as signed
+		// This fixes the bug where the wrong player was being sent to the server
+		const currentPlayerName = selectedPlayer.value.name;
+		const currentActivityType = activityType.value;
+
 		// Mark the current player as signed
 		playersStore.markSelectedPlayerSigned(signatureData);
 
@@ -508,12 +513,12 @@ function submitSignature() {
 		if (isConnected.value && tabletName.value) {
 			tabletsStore.sendMessage("player-signed", {
 				tabletName: tabletName.value,
-				playerName: selectedPlayer.value.name,
-				activityType: activityType.value,
+				playerName: currentPlayerName, // Use stored name instead of selectedPlayer.value.name
+				activityType: currentActivityType,
 				signatureData,
 			});
 
-			console.log(`Signature for ${selectedPlayer.value.name} sent to server`);
+			console.log(`Signature for ${currentPlayerName} sent to server`);
 		} else {
 			console.warn("WebSocket not connected, signature saved locally only");
 		}
