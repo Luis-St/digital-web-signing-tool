@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Liability Waiver</title>
+	<style>
+		body {
+			font-family: Helvetica, Arial, sans-serif;
+			margin: 20mm;
+			color: #000000;
+			line-height: 1.4;
+		}
+		.header {
+			text-align: center;
+			margin-bottom: 20px;
+		}
+		.company-name {
+			font-size: 22px;
+			color: #1e40af;
+			margin-bottom: 5px;
+		}
+		.company-address {
+			font-size: 12px;
+			margin-bottom: 15px;
+		}
+		.document-title {
+			font-size: 16px;
+			font-weight: bold;
+			text-align: center;
+			margin-bottom: 20px;
+		}
+		.content {
+			font-size: 12px;
+		}
+		.list-item {
+			margin-left: 20px;
+			margin-bottom: 7px;
+		}
+		.signature-section {
+			margin-top: 20px;
+			margin-bottom: 20px;
+		}
+		.signature-label {
+			margin-bottom: 7px;
+		}
+		.signature-image {
+			width: 80mm;
+			height: 40mm;
+		}
+		.participant-info {
+			display: flex;
+			margin-top: 10px;
+		}
+		.participant-name {
+			flex: 1;
+		}
+		.date-section {
+			flex: 1;
+		}
+		.footer {
+			position: fixed;
+			bottom: 10mm;
+			left: 0;
+			width: 100%;
+			text-align: center;
+			font-size: 8px;
+			color: #646464;
+		}
+	</style>
+</head>
+<body>
+<div class="header">
+	<div class="company-name">COMPANY NAME</div>
+	<div class="company-address">123 Entertainment Avenue, City, State ZIP</div>
+</div>
+
+<div class="document-title">LIABILITY WAIVER AND RELEASE FORM - {{ACTIVITY_TYPE}}</div>
+
+<div class="content">
+	<p>I, {{PLAYER_NAME}}, understand that participation in {{ACTIVITY_LABEL}} activities involves inherent risks of injury or damage to myself or others.</p>
+
+	<p>By signing this waiver, I acknowledge these risks and agree to:</p>
+
+	<div class="list-item">1. Follow all safety instructions provided by staff</div>
+	<div class="list-item">2. Use all equipment properly and as directed</div>
+	<div class="list-item">3. Accept full responsibility for my actions during the activity</div>
+	<div class="list-item">4. Pay for any damages I cause to equipment or facilities</div>
+
+	<p>I hereby release COMPANY NAME, its employees, and representatives from any liability for injuries, damages, or losses that may occur during my participation.</p>
+
+	<p>I understand that COMPANY NAME reserves the right to remove any participant from the activity for unsafe behavior without refund. I also grant permission to use my likeness in photographs or videos for promotional purposes without compensation.</p>
+
+	<div class="signature-section">
+		<div class="signature-label">Participant Signature:</div>
+		<img class="signature-image" src="{{SIGNATURE_DATA}}" alt="Signature">
+	</div>
+
+	<div class="participant-info">
+		<div class="participant-name">
+			<span>Participant Name: {{PLAYER_NAME}}</span>
+		</div>
+		<div class="date-section">
+			<span>Date: {{TODAY_DATE}}</span>
+		</div>
+	</div>
+</div>
+
+<div class="footer">
+	This document was electronically signed and is legally binding according to Electronic Signatures in Global and National Commerce Act (E-Sign).
+</div>
+</body>
+</html>
