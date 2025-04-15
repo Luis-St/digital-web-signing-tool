@@ -142,8 +142,7 @@ wss.on("connection", (ws, req) => {
 	
 	// Send current tablet list to new connections (especially for admins)
 	setTimeout(() => {
-		const tablets = Array.from(connectedTablets.values())
-			.filter(tablet => tablet.connected); // Only send connected tablets
+		const tablets = Array.from(connectedTablets.values()).filter(tablet => tablet.connected); // Only send connected tablets
 		
 		sendToClient(ws, "tablets-update", tablets);
 	}, 1000);
@@ -179,8 +178,7 @@ function handleEvent(ws, event, data, id) {
 		
 		case "get-tablets":
 			// Send current tablets list to the requesting client
-			const tablets = Array.from(connectedTablets.values())
-				.filter(tablet => tablet.connected);
+			const tablets = Array.from(connectedTablets.values()).filter(tablet => tablet.connected);
 			
 			sendToClient(ws, "tablets-update", tablets);
 			break;
@@ -299,14 +297,13 @@ function updateTabletStatus(ws, { tabletName, status }) {
 	}
 	
 	// Broadcast updated tablet list
-	const tablets = Array.from(connectedTablets.values())
-		.filter(tablet => tablet.connected);
+	const tablets = Array.from(connectedTablets.values()).filter(tablet => tablet.connected);
 	
 	broadcast("tablets-update", tablets);
 }
 
 // Handle player signature
-async function handlePlayerSigned(ws, { tabletName, playerName, activityType, signatureData }) {
+async function handlePlayerSigned(ws, { tabletName, playerName, activityType, signatureData, birthdate }) {
 	// Use the sender's tablet name if not specified
 	tabletName = tabletName || ws.tabletName;
 	
@@ -326,6 +323,7 @@ async function handlePlayerSigned(ws, { tabletName, playerName, activityType, si
 			activityType,
 			signatureData,
 			outputPath: filePath,
+			birthdate, // Add the birthdate to the PDF generation
 		});
 		
 		console.log(`Waiver PDF created for ${playerName} at ${filePath}`);

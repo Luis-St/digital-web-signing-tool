@@ -10,6 +10,7 @@
 				@touchstart="handleTouchStart"
 				@touchmove="handleTouchMove"
 				@touchend="stopDrawing"
+				@touchcancel="stopDrawing"
 		></canvas>
 	</div>
 </template>
@@ -26,7 +27,7 @@ const lastX = ref(0);
 const lastY = ref(0);
 
 // Define emits
-const emit = defineEmits(['signature-change']);
+const emit = defineEmits(["signature-change"]);
 
 // Expose methods to parent component
 defineExpose({
@@ -100,18 +101,18 @@ function draw(event) {
 	lastY.value = currentY;
 
 	// Emit change event after drawing
-	emit('signature-change', isEmpty());
+	emit("signature-change", isEmpty());
 }
 
 function stopDrawing() {
 	if (isDrawing.value) {
 		isDrawing.value = false;
 		// Emit change event when stopping drawing
-		emit('signature-change', isEmpty());
+		emit("signature-change", isEmpty());
 	}
 }
 
-// Touch events
+// Touch events - Enhanced for better tablet support
 function handleTouchStart(event) {
 	event.preventDefault();
 
@@ -147,7 +148,7 @@ function handleTouchMove(event) {
 		lastY.value = currentY;
 
 		// Emit change event after drawing
-		emit('signature-change', isEmpty());
+		emit("signature-change", isEmpty());
 	}
 }
 
@@ -156,7 +157,7 @@ function clear() {
 	const ctx = context.value;
 	ctx.clearRect(0, 0, canvas.value.width, canvas.value.height);
 	// Emit change event after clearing
-	emit('signature-change', true);
+	emit("signature-change", true);
 }
 
 function isEmpty() {
@@ -177,5 +178,11 @@ function getSignatureData() {
 	touch-action: none; /* Prevents browser handling of touch events */
 	height: 100%; /* Take up the full height of the container */
 	width: 100%;
+	-webkit-touch-callout: none; /* iOS Safari */
+	-webkit-user-select: none; /* Safari */
+	-khtml-user-select: none; /* Konqueror HTML */
+	-moz-user-select: none; /* Old versions of Firefox */
+	-ms-user-select: none; /* Internet Explorer/Edge */
+	user-select: none; /* Non-prefixed version, currently supported by Chrome, Edge, Opera and Firefox */
 }
 </style>

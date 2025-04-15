@@ -3,7 +3,7 @@ const path = require("path");
 const puppeteer = require("puppeteer");
 
 // This function generates a PDF file from the waiver data using an HTML template
-async function generatePdf({ playerName, activityType, signatureData, outputPath }) {
+async function generatePdf({ playerName, activityType, signatureData, birthdate, outputPath }) {
 	try {
 		// Read the HTML template
 		const templatePath = path.join(process.cwd(), "waiver-template.html");
@@ -13,13 +13,17 @@ async function generatePdf({ playerName, activityType, signatureData, outputPath
 		const activityLabel = activityType === "laser-tag" ? "Laser Tag" : "Escape Room";
 		const today = new Date().toLocaleDateString();
 		
+		// Format birthdate if provided
+		const formattedBirthdate = new Date(birthdate).toLocaleDateString();
+		
 		// Replace variables in the template
 		templateHtml = templateHtml
-			.replace(/{{PLAYER_NAME}}/g, playerName)
-			.replace(/{{ACTIVITY_TYPE}}/g, activityLabel.toUpperCase())
-			.replace(/{{ACTIVITY_LABEL}}/g, activityLabel)
-			.replace(/{{SIGNATURE_DATA}}/g, signatureData)
-			.replace(/{{TODAY_DATE}}/g, today);
+			.replace(/{{ PLAYER_NAME }}/g, playerName)
+			.replace(/{{ ACTIVITY_TYPE }}/g, activityLabel.toUpperCase())
+			.replace(/{{ ACTIVITY_LABEL }}/g, activityLabel)
+			.replace(/{{ SIGNATURE_DATA }}/g, signatureData)
+			.replace(/{{ TODAY_DATE }}/g, today)
+			.replace(/{{ BIRTH_DATE }}/g, formattedBirthdate);
 		
 		// Create a temporary HTML file
 		const tempHtmlFileName = `temp_waiver_${Date.now()}.html`;

@@ -49,6 +49,7 @@ export const usePlayersStore = defineStore("players", () => {
 			signed: false,
 			signatureData: null,
 			timestamp: null,
+			birthdate: null,
 		}));
 		
 		// Set the first player as selected by default if available
@@ -80,13 +81,18 @@ export const usePlayersStore = defineStore("players", () => {
 		return selectPlayer(index);
 	}
 	
-	function markSelectedPlayerSigned(signatureData) {
+	function markSelectedPlayerSigned(signatureData, birthdate = null) {
 		console.log("Marking selected player signed");
 		
 		if (selectedPlayer.value) {
 			selectedPlayer.value.signed = true;
 			selectedPlayer.value.signatureData = signatureData;
 			selectedPlayer.value.timestamp = new Date().toISOString();
+			
+			// Store birthdate if provided
+			if (birthdate) {
+				selectedPlayer.value.birthdate = birthdate;
+			}
 			
 			// Update sessionStorage
 			updateSessionStorage();
@@ -105,6 +111,7 @@ export const usePlayersStore = defineStore("players", () => {
 			players.value[index].signed = false;
 			players.value[index].signatureData = null;
 			players.value[index].timestamp = null;
+			players.value[index].birthdate = null; // Also reset birthdate
 			
 			// Update sessionStorage
 			updateSessionStorage();

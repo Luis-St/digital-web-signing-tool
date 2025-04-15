@@ -80,7 +80,7 @@
 				</p>
 			</div>
 
-			<!-- Player names setup screen -->
+			<!-- Player names setup screen - MODIFIED: Split name into first and last -->
 			<div v-else-if="setupMode" class="w-full flex-grow flex flex-col p-4">
 				<header class="bg-primary text-white p-4 mb-6 rounded">
 					<div class="container mx-auto">
@@ -97,12 +97,20 @@
 							<div class="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center font-semibold">
 								{{ index + 1 }}
 							</div>
-							<input
-									v-model="player.name"
-									:placeholder="`Player ${index + 1} name`"
-									class="input flex-grow"
-									required
-							/>
+							<div class="flex-grow grid grid-cols-2 gap-2">
+								<input
+										v-model="player.firstName"
+										:placeholder="`First name`"
+										class="input"
+										required
+								/>
+								<input
+										v-model="player.lastName"
+										:placeholder="`Last name`"
+										class="input"
+										required
+								/>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -131,7 +139,7 @@
 				</p>
 			</div>
 
-			<!-- Waiver signing interface with player list -->
+			<!-- Waiver signing interface with player list - MODIFIED: Added birthdate input -->
 			<div v-else class="w-full flex-grow flex flex-col">
 				<header class="bg-primary text-white p-4">
 					<div class="container mx-auto">
@@ -206,6 +214,24 @@
 								</div>
 							</div>
 
+							<div class="card mb-4">
+								<h3 class="text-lg font-medium mb-3">Date of Birth</h3>
+								<p class="text-sm text-gray-500 mb-4">Please enter your birthdate</p>
+
+								<div class="w-full sm:w-1/2 mb-4">
+									<input
+											type="date"
+											v-model="birthdate"
+											class="input w-full"
+											required
+											:max="todayDate"
+									/>
+									<p v-if="!birthdate" class="text-red-500 text-sm mt-1">
+										* Date of birth is required
+									</p>
+								</div>
+							</div>
+
 							<div class="card">
 								<h3 class="text-lg font-medium mb-3">Signature</h3>
 								<p class="text-sm text-gray-500 mb-4">Please sign below to indicate your agreement</p>
@@ -222,7 +248,7 @@
 									<button
 											@click="submitSignature"
 											class="btn-primary flex-grow"
-											:disabled="!signatureIsValid || !isConnected || selectedPlayer.signed"
+											:disabled="!signatureIsValid || !isConnected || selectedPlayer.signed || !birthdate"
 									>
 										{{ selectedPlayer.signed ? "Already Signed" : "I Agree & Sign" }}
 									</button>
@@ -237,6 +263,10 @@
 
 								<p v-if="!isConnected" class="text-red-500 text-center mt-2">
 									Currently offline. Please reconnect before signing.
+								</p>
+
+								<p v-if="!birthdate && !selectedPlayer.signed" class="text-red-500 text-center mt-2">
+									Please enter your date of birth before signing.
 								</p>
 
 								<div v-if="signatureSubmitted" class="mt-4 p-3 bg-green-50 text-green-700 rounded">
@@ -284,6 +314,15 @@ const playerCount = ref(0);
 const playerSetupFields = ref([]);
 const activityTypeFromAdmin = ref("");
 
+// Today's date for birthdate validation
+const todayDate = computed(() => {
+	const today = new Date();
+	return today.toISOString().split("T")[0];
+});
+
+// Birthdate for the current player
+const birthdate = ref("");
+
 // UI feedback
 const signatureSubmitted = ref(false);
 const hasDrawnSignature = ref(false);
@@ -321,7 +360,10 @@ const activityTypeLabel = computed(() => {
 
 const allPlayerNamesValid = computed(() => {
 	return playerSetupFields.value.length > 0 &&
-		playerSetupFields.value.every(p => p.name && p.name.trim() !== "");
+		playerSetupFields.value.every(p =>
+			p.firstName && p.firstName.trim() !== "" &&
+			p.lastName && p.lastName.trim() !== "",
+		);
 });
 
 // Handle signature change
@@ -339,7 +381,8 @@ function handlePlayersAssigned(data) {
 
 		// Create empty player setup fields
 		playerSetupFields.value = Array.from({ length: playerCount.value }, (_, i) => ({
-			name: "",
+			firstName: "",
+			lastName: "",
 		}));
 
 		// Enter setup mode
@@ -351,7 +394,7 @@ function handlePlayersAssigned(data) {
 function confirmPlayerNames() {
 	if (!allPlayerNamesValid.value) return;
 
-	const playerNames = playerSetupFields.value.map(p => p.name.trim());
+	const playerNames = playerSetupFields.value.map(p => `${p.firstName.trim()} ${p.lastName.trim()}`);
 	playersStore.setPlayers(playerNames);
 	playersStore.setActivityType(activityTypeFromAdmin.value);
 
@@ -407,6 +450,7 @@ function resetPlayersOnly() {
 	playerCount.value = 0;
 	playerSetupFields.value = [];
 	hasDrawnSignature.value = false;
+	birthdate.value = "";
 }
 
 // Force reconnection
@@ -461,6 +505,7 @@ function resetTablet() {
 	setupMode.value = false;
 	playerCount.value = 0;
 	playerSetupFields.value = [];
+	birthdate.value = "";
 }
 
 function selectPlayer(index) {
@@ -470,6 +515,7 @@ function selectPlayer(index) {
 	if (selectedPlayer.value && !selectedPlayer.value.signed && signaturePad.value) {
 		signaturePad.value.clear();
 		hasDrawnSignature.value = false;
+		birthdate.value = selectedPlayer.value.birthdate || ""; // Load birthdate if exists
 	}
 }
 
@@ -487,11 +533,19 @@ function resetSignature() {
 			signaturePad.value.clear();
 			hasDrawnSignature.value = false;
 		}
+		birthdate.value = "";
 	}
 }
 
 function submitSignature() {
+	// Explicitly validate that birthdate is provided
 	if (!signatureIsValid.value || !selectedPlayer.value || !isConnected.value || selectedPlayer.value.signed) {
+		return;
+	}
+
+	// Make sure birthdate is provided
+	if (!birthdate.value) {
+		alert("Please enter your date of birth before signing.");
 		return;
 	}
 
@@ -499,12 +553,12 @@ function submitSignature() {
 		const signatureData = signaturePad.value.getSignatureData();
 
 		// Store the current player name and activity type before marking as signed
-		// This fixes the bug where the wrong player was being sent to the server
 		const currentPlayerName = selectedPlayer.value.name;
 		const currentActivityType = activityType.value;
+		const currentBirthdate = birthdate.value;
 
-		// Mark the current player as signed
-		playersStore.markSelectedPlayerSigned(signatureData);
+		// Mark the current player as signed and store birthdate
+		playersStore.markSelectedPlayerSigned(signatureData, currentBirthdate);
 
 		// Reset success message state
 		signatureSubmitted.value = false;
@@ -513,9 +567,10 @@ function submitSignature() {
 		if (isConnected.value && tabletName.value) {
 			tabletsStore.sendMessage("player-signed", {
 				tabletName: tabletName.value,
-				playerName: currentPlayerName, // Use stored name instead of selectedPlayer.value.name
+				playerName: currentPlayerName,
 				activityType: currentActivityType,
 				signatureData,
+				birthdate: currentBirthdate,
 			});
 
 			console.log(`Signature for ${currentPlayerName} sent to server`);
@@ -525,6 +580,7 @@ function submitSignature() {
 
 		// Reset the drawn signature state
 		hasDrawnSignature.value = false;
+		birthdate.value = "";
 	} catch (error) {
 		console.error("Error submitting signature:", error);
 	}
@@ -622,8 +678,18 @@ watch(selectedPlayer, (newPlayer) => {
 		// Clear signature pad when switching to a new player
 		signaturePad.value.clear();
 		hasDrawnSignature.value = false;
+
 		// Reset success message
 		signatureSubmitted.value = false;
+
+		// Set birthdate if already stored, otherwise clear it
+		if (newPlayer.signed && newPlayer.birthdate) {
+			birthdate.value = newPlayer.birthdate;
+		} else {
+			birthdate.value = "";
+		}
+
+		console.log(`Switched to player: ${newPlayer.name}, Birthdate set to: ${birthdate.value || "empty"}`);
 	}
 });
 
@@ -651,5 +717,6 @@ watch(allSigned, (newValue) => {
 /* Larger signature canvas */
 .signature-container {
 	height: 300px; /* Increased from 200px */
+	touch-action: none; /* Ensures touch events are handled correctly */
 }
 </style>
