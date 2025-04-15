@@ -5,12 +5,12 @@
 				class="w-full h-full touch-none"
 				@mousedown="startDrawing"
 				@mousemove="draw"
-				@mouseup="stopDrawing"
 				@mouseout="stopDrawing"
-				@touchstart="handleTouchStart"
-				@touchmove="handleTouchMove"
-				@touchend="stopDrawing"
+				@mouseup="stopDrawing"
 				@touchcancel="stopDrawing"
+				@touchend="stopDrawing"
+				@touchmove="handleTouchMove"
+				@touchstart="handleTouchStart"
 		></canvas>
 	</div>
 </template>

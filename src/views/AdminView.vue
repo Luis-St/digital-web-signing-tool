@@ -9,9 +9,9 @@
 			<p>Connected tablets: {{ tablets.length }}</p>
 			<p>Selected tablet: {{ selectedTabletName || "None" }}</p>
 			<div class="flex space-x-2 mt-1">
-				<button @click="showDebug = false" class="text-blue-500 underline">Hide</button>
-				<button @click="refreshTabletsList" class="text-green-500 underline">Refresh Tablets</button>
-				<button @click="forceRefresh" class="text-purple-500 underline">Force Reconnect</button>
+				<button class="text-blue-500 underline" @click="showDebug = false">Hide</button>
+				<button class="text-green-500 underline" @click="refreshTabletsList">Refresh Tablets</button>
+				<button class="text-purple-500 underline" @click="forceRefresh">Force Reconnect</button>
 			</div>
 		</div>
 
@@ -19,10 +19,10 @@
 			<div class="container mx-auto flex justify-between items-center">
 				<h1 class="text-xl font-bold">Waiver System - Admin</h1>
 				<div class="flex items-center">
-					<span class="mr-4 text-sm" :class="isConnected ? 'text-green-200' : 'text-red-200'">
+					<span :class="isConnected ? 'text-green-200' : 'text-red-200'" class="mr-4 text-sm">
 						{{ isConnected ? "Connected" : "Disconnected" }}
 					</span>
-					<button @click="logout" class="text-white hover:underline">Logout</button>
+					<button class="text-white hover:underline" @click="logout">Logout</button>
 				</div>
 			</div>
 		</header>
@@ -36,23 +36,23 @@
 					<div class="mb-8">
 						<label class="block text-lg font-medium text-gray-700 mb-3">Activity Type</label>
 						<div class="flex flex-col space-y-3">
-							<label class="inline-flex items-center p-3 border rounded-lg cursor-pointer transition-colors duration-200 hover:bg-gray-50"
-								   :class="{'bg-primary/10 border-primary': activityType === 'laser-tag', 'border-gray-200': activityType !== 'laser-tag'}">
+							<label :class="{'bg-primary/10 border-primary': activityType === 'laser-tag', 'border-gray-200': activityType !== 'laser-tag'}"
+								   class="inline-flex items-center p-3 border rounded-lg cursor-pointer transition-colors duration-200 hover:bg-gray-50">
 								<input
-										type="radio"
 										v-model="activityType"
-										value="laser-tag"
 										class="form-radio"
+										type="radio"
+										value="laser-tag"
 								/>
 								<span class="ml-3 font-medium">Laser Tag</span>
 							</label>
-							<label class="inline-flex items-center p-3 border rounded-lg cursor-pointer transition-colors duration-200 hover:bg-gray-50"
-								   :class="{'bg-primary/10 border-primary': activityType === 'escape-room', 'border-gray-200': activityType !== 'escape-room'}">
+							<label :class="{'bg-primary/10 border-primary': activityType === 'escape-room', 'border-gray-200': activityType !== 'escape-room'}"
+								   class="inline-flex items-center p-3 border rounded-lg cursor-pointer transition-colors duration-200 hover:bg-gray-50">
 								<input
-										type="radio"
 										v-model="activityType"
-										value="escape-room"
 										class="form-radio"
+										type="radio"
+										value="escape-room"
 								/>
 								<span class="ml-3 font-medium">Escape Room</span>
 							</label>
@@ -60,29 +60,29 @@
 					</div>
 
 					<div class="mb-8">
-						<label for="playerCount" class="block text-lg font-medium text-gray-700 mb-3">
+						<label class="block text-lg font-medium text-gray-700 mb-3" for="playerCount">
 							Number of Players
 						</label>
 						<div class="flex items-center">
 							<button
-									@click="decrementCount"
-									class="bg-gray-200 hover:bg-gray-300 text-gray-700 h-12 w-12 flex items-center justify-center rounded-l-lg text-2xl"
 									:disabled="playerCount <= 1"
+									class="bg-gray-200 hover:bg-gray-300 text-gray-700 h-12 w-12 flex items-center justify-center rounded-l-lg text-2xl"
+									@click="decrementCount"
 							>
 								-
 							</button>
 							<input
 									id="playerCount"
 									v-model.number="playerCount"
-									type="number"
-									min="1"
-									max="20"
 									class="input h-12 w-20 text-center text-xl font-semibold rounded-none"
+									max="20"
+									min="1"
+									type="number"
 							/>
 							<button
-									@click="incrementCount"
-									class="bg-gray-200 hover:bg-gray-300 text-gray-700 h-12 w-12 flex items-center justify-center rounded-r-lg text-2xl"
 									:disabled="playerCount >= 20"
+									class="bg-gray-200 hover:bg-gray-300 text-gray-700 h-12 w-12 flex items-center justify-center rounded-r-lg text-2xl"
+									@click="incrementCount"
 							>
 								+
 							</button>
@@ -97,10 +97,10 @@
 
 					<div class="mt-6">
 						<button
-								@click="sendToTablet"
-								class="btn-primary w-full py-3 text-lg"
-								:disabled="!canSendToTablet"
 								:class="{'opacity-50 cursor-not-allowed': !canSendToTablet}"
+								:disabled="!canSendToTablet"
+								class="btn-primary w-full py-3 text-lg"
+								@click="sendToTablet"
 						>
 							Send to Selected Tablet
 						</button>
@@ -112,27 +112,27 @@
 					<div class="flex justify-between items-center mb-6">
 						<h2 class="text-2xl font-semibold">Available Tablets</h2>
 						<button
-								@click="refreshTabletsList"
 								class="btn flex items-center"
+								@click="refreshTabletsList"
 						>
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+							<svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+								<path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
 							</svg>
 							Refresh List
 						</button>
 					</div>
 
 					<div v-if="!isConnected" class="bg-red-50 text-red-700 p-5 rounded-lg mb-6 text-center">
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+						<svg class="h-12 w-12 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+							<path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
 						</svg>
 						<p class="text-lg mb-3">Not connected to server</p>
-						<button @click="adminStore.initWebSocket()" class="btn-primary">Try to reconnect</button>
+						<button class="btn-primary" @click="adminStore.initWebSocket()">Try to reconnect</button>
 					</div>
 
 					<div v-else-if="tablets.length === 0" class="flex flex-col items-center justify-center p-12 text-center">
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+						<svg class="h-16 w-16 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+							<path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
 						</svg>
 						<p class="text-gray-500 text-lg mb-4">No tablets connected</p>
 						<p class="text-gray-400">Please register a tablet and refresh the list</p>
@@ -142,21 +142,21 @@
 						<div
 								v-for="tablet in tablets"
 								:key="tablet.name"
-								@click="selectTablet(tablet.name)"
-								class="p-4 border rounded-lg cursor-pointer transition-colors duration-200 flex flex-col"
 								:class="{
 									'bg-primary/10 border-primary shadow': selectedTabletName === tablet.name,
 									'hover:bg-gray-50': selectedTabletName !== tablet.name
 								}"
+								class="p-4 border rounded-lg cursor-pointer transition-colors duration-200 flex flex-col"
+								@click="selectTablet(tablet.name)"
 						>
 							<div class="flex justify-between items-center mb-3">
 								<h3 class="font-semibold text-lg">{{ tablet.name }}</h3>
 								<span
-										class="px-3 py-1 rounded-full text-sm font-medium"
 										:class="{
 										'bg-orange-100 text-orange-800': tablet.status === 'busy',
 										'bg-green-100 text-green-800': tablet.status === 'available'
 									}"
+										class="px-3 py-1 rounded-full text-sm font-medium"
 								>
 									{{ tablet.status === "busy" ? "Busy" : "Available" }}
 								</span>

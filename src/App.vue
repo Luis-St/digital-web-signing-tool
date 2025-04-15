@@ -4,12 +4,12 @@
 		<div v-if="showDebug" class="bg-yellow-100 p-2 text-xs">
 			<p>Current route: {{ $route.path }}</p>
 			<p>Auth state: {{ isAuthenticated ? "Logged in" : "Not logged in" }}</p>
-			<button @click="showDebug = false" class="text-blue-500 underline">Hide</button>
+			<button class="text-blue-500 underline" @click="showDebug = false">Hide</button>
 		</div>
 
 		<!-- Router view where components will be rendered -->
 		<router-view v-slot="{ Component }">
-			<transition name="fade" mode="out-in">
+			<transition mode="out-in" name="fade">
 				<component :is="Component"/>
 			</transition>
 		</router-view>

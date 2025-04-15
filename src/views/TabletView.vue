@@ -9,10 +9,10 @@
 			</p>
 			<p>Signature Valid: {{ signatureIsValid }}</p>
 			<div class="flex space-x-2 mt-1">
-				<button @click="showDebug = false" class="text-blue-500 underline">Hide</button>
-				<button v-if="!isTabletAuthenticated" @click="useTestMode" class="text-green-500 underline">Test Mode</button>
-				<button v-if="isTabletAuthenticated" @click="resetTablet" class="text-red-500 underline">Reset</button>
-				<button v-if="isTabletAuthenticated && !isConnected" @click="reconnect" class="text-blue-500 underline">Reconnect</button>
+				<button class="text-blue-500 underline" @click="showDebug = false">Hide</button>
+				<button v-if="!isTabletAuthenticated" class="text-green-500 underline" @click="useTestMode">Test Mode</button>
+				<button v-if="isTabletAuthenticated" class="text-red-500 underline" @click="resetTablet">Reset</button>
+				<button v-if="isTabletAuthenticated && !isConnected" class="text-blue-500 underline" @click="reconnect">Reconnect</button>
 			</div>
 		</div>
 
@@ -21,31 +21,31 @@
 			<div class="card w-full max-w-md">
 				<h1 class="text-2xl font-bold text-center text-primary mb-6">Tablet Registration</h1>
 
-				<form @submit.prevent="handleRegisterTablet" class="space-y-4">
+				<form class="space-y-4" @submit.prevent="handleRegisterTablet">
 					<div>
-						<label for="tabletName" class="block text-sm font-medium text-gray-700 mb-1">
+						<label class="block text-sm font-medium text-gray-700 mb-1" for="tabletName">
 							Tablet Name
 						</label>
 						<input
 								id="tabletName"
 								v-model="tabletName"
-								type="text"
 								class="input w-full"
 								placeholder="e.g., Tablet 1"
 								required
+								type="text"
 						/>
 					</div>
 
 					<div>
-						<label for="tabletToken" class="block text-sm font-medium text-gray-700 mb-1">
+						<label class="block text-sm font-medium text-gray-700 mb-1" for="tabletToken">
 							Validation Token
 						</label>
 						<input
 								id="tabletToken"
 								v-model="tabletToken"
-								type="password"
 								class="input w-full"
 								required
+								type="password"
 						/>
 					</div>
 
@@ -53,7 +53,7 @@
 						{{ registrationError }}
 					</div>
 
-					<button type="submit" class="btn-primary w-full" :disabled="registrationInProgress">
+					<button :disabled="registrationInProgress" class="btn-primary w-full" type="submit">
 						{{ registrationInProgress ? "Connecting..." : "Register Tablet" }}
 					</button>
 				</form>
@@ -66,8 +66,8 @@
 			<div v-if="players.length === 0 && !setupMode" class="w-full flex-grow flex flex-col items-center justify-center p-4 text-center">
 				<div class="text-6xl text-primary mb-6">
 					<!-- Icon could go here -->
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+					<svg class="h-24 w-24 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+						<path d="M12 6v6m0 0v6m0-6h6m-6 0H6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
 					</svg>
 				</div>
 				<h2 class="text-2xl font-bold mb-2">Ready for Players</h2>
@@ -76,7 +76,7 @@
 				</p>
 				<p v-if="!isConnected" class="text-red-500 mt-4">
 					Currently offline. Please check your connection.
-					<button @click="reconnect" class="underline ml-2">Reconnect</button>
+					<button class="underline ml-2" @click="reconnect">Reconnect</button>
 				</p>
 			</div>
 
@@ -117,9 +117,9 @@
 
 				<div class="flex justify-end">
 					<button
-							@click="confirmPlayerNames"
-							class="btn-primary"
 							:disabled="!allPlayerNamesValid"
+							class="btn-primary"
+							@click="confirmPlayerNames"
 					>
 						Start Signing Waivers
 					</button>
@@ -129,8 +129,8 @@
 			<!-- Welcome screen (after all players have signed) -->
 			<div v-else-if="allSigned" class="w-full flex-grow flex flex-col items-center justify-center p-4 text-center bg-primary text-white">
 				<div class="text-6xl mb-6">
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+					<svg class="h-24 w-24 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+						<path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
 					</svg>
 				</div>
 				<h2 class="text-3xl font-bold mb-2">All Set!</h2>
@@ -158,22 +158,22 @@
 								<div
 										v-for="(player, index) in players"
 										:key="index"
-										@click="selectPlayer(index)"
-										class="p-3 rounded-lg cursor-pointer transition-colors duration-150 flex justify-between items-center"
 										:class="{
                     'bg-primary/10 border-primary': selectedPlayerIndex === index,
                     'hover:bg-gray-200': selectedPlayerIndex !== index,
                     'border border-primary': selectedPlayerIndex === index,
                     'border border-transparent': selectedPlayerIndex !== index
                   }"
+										class="p-3 rounded-lg cursor-pointer transition-colors duration-150 flex justify-between items-center"
+										@click="selectPlayer(index)"
 								>
 									<span class="font-medium truncate">{{ player.name }}</span>
 									<span
-											class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
 											:class="{
                       'bg-green-100 text-green-800': player.signed,
                       'bg-yellow-100 text-yellow-800': !player.signed
                     }"
+											class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
 									>
                     {{ player.signed ? "Signed" : "Pending" }}
                   </span>
@@ -220,11 +220,11 @@
 
 								<div class="w-full sm:w-1/2 mb-4">
 									<input
-											type="date"
 											v-model="birthdate"
+											:max="todayDate"
 											class="input w-full"
 											required
-											:max="todayDate"
+											type="date"
 									/>
 									<p v-if="!birthdate" class="text-red-500 text-sm mt-1">
 										* Date of birth is required
@@ -242,20 +242,20 @@
 								</div>
 
 								<div class="flex space-x-3">
-									<button @click="clearSignature" class="btn bg-gray-200 text-gray-700 hover:bg-gray-300">
+									<button class="btn bg-gray-200 text-gray-700 hover:bg-gray-300" @click="clearSignature">
 										Clear
 									</button>
 									<button
-											@click="submitSignature"
-											class="btn-primary flex-grow"
 											:disabled="!signatureIsValid || !isConnected || selectedPlayer.signed || !birthdate"
+											class="btn-primary flex-grow"
+											@click="submitSignature"
 									>
 										{{ selectedPlayer.signed ? "Already Signed" : "I Agree & Sign" }}
 									</button>
 									<button
 											v-if="selectedPlayer.signed"
-											@click="resetSignature"
 											class="btn bg-red-100 text-red-700 hover:bg-red-200"
+											@click="resetSignature"
 									>
 										Reset
 									</button>

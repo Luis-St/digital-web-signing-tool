@@ -6,26 +6,26 @@
 				<p class="text-gray-600">Admin Login</p>
 			</div>
 
-			<form @submit.prevent="handleLogin" class="space-y-4">
+			<form class="space-y-4" @submit.prevent="handleLogin">
 				<div>
-					<label for="username" class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+					<label class="block text-sm font-medium text-gray-700 mb-1" for="username">Username</label>
 					<input
 							id="username"
 							v-model="username"
-							type="text"
 							class="input w-full"
 							required
+							type="text"
 					/>
 				</div>
 
 				<div>
-					<label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+					<label class="block text-sm font-medium text-gray-700 mb-1" for="password">Password</label>
 					<input
 							id="password"
 							v-model="password"
-							type="password"
 							class="input w-full"
 							required
+							type="password"
 					/>
 				</div>
 
@@ -33,7 +33,7 @@
 					{{ errorMessage }}
 				</div>
 
-				<button type="submit" class="btn-primary w-full">Login</button>
+				<button class="btn-primary w-full" type="submit">Login</button>
 			</form>
 		</div>
 	</div>
