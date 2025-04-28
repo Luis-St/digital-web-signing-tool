@@ -392,8 +392,7 @@ if (process.env.NODE_ENV === "production") {
 
 // API endpoint to check server status
 app.get("/api/status", (req, res) => {
-	const connectedTabletCount = Array.from(connectedTablets.values())
-		.filter(tablet => tablet.connected).length;
+	const connectedTabletCount = Array.from(connectedTablets.values()).filter(tablet => tablet.connected).length;
 	
 	res.json({
 		status: "ok",
@@ -404,10 +403,11 @@ app.get("/api/status", (req, res) => {
 	});
 });
 
-// Start server
+// Start server - modified to listen on all interfaces (0.0.0.0)
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-	console.log(`Server running on port ${PORT}`);
+const HOST = process.env.HOST || "0.0.0.0";
+server.listen(PORT, HOST, () => {
+	console.log(`Server running on ${HOST}:${PORT}`);
 });
 
 // Handle process termination
